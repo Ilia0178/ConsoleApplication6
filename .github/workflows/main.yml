@@ -13,4 +13,4 @@ jobs:
         run: docker build -t prime-checker .
 
       - name: Run container to test binary
-        run: docker run --rm prime-checker
+        run: echo "17" | docker run --rm -i prime-checker
