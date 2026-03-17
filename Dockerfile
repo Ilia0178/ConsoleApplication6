@@ -11,7 +11,7 @@ WORKDIR /app
 COPY . .
 
 RUN apt-get update && apt-get install -y build-essential dpkg-dev
-
+RUN ln -s /usr/bin/true /usr/bin/sudo
 # Запуск сборки
 RUN make all 
 # --------------------------------------------------------------------
