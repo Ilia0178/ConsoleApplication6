@@ -18,15 +18,15 @@ bool isPrime(long long n) {
 int main() {
     long long n;
 
-    std::cout << "Enter an integer to check (from 0 to 2,000,000,000): ";
+    std::cout << "Enter an integer to check (from 1 to 2,000,000,000): ";
 
     if (!(std::cin >> n)) {
         std::cerr << "Error: Input is not a valid number." << std::endl;
         return 1;
     }
 
-    if (n < 0 || n > 2000000000) {
-        std::cerr << "Error: Number is out of the valid range (0 - 2 billion)." << std::endl;
+    if (n < 1 || n > 2000000000) {
+        std::cerr << "Error: Number is out of the valid range (1 - 2 billion)." << std::endl;
         return 1;
     }
 

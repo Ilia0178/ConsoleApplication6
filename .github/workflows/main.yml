@@ -3,14 +3,103 @@ name: CI/CD Pipeline
 on: [push]
 
 jobs:
-  build:
+  # ===================================================================
+  # 1 BUILD
+  # ===================================================================
+  build_job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+      - name: Compile Code (make build)
+        run: make build
+      - name: Save compiled binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: prime_checker_binary
+          path: prime_checker
+
+  # ===================================================================
+  # 2 TEST
+  # ===================================================================
+  test_job:
+    needs: build_job
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Download binary for testing
+        uses: actions/download-artifact@v4
+        with:
+          name: prime_checker_binary
+          path: ./
+          
+      - name: Run Tests (make test)
+        run: |
+          chmod +x prime_checker
+          make test
+
+  # ===================================================================
+  # 3 PACKAGE
+  # ===================================================================
+  package_job:
+    needs: test_job
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev 
+
+      - name: Run Package (make package)
+        run: make package
+
+      - name: Upload DEB package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: prime-checker-deb
+          path: ./*.deb
+
+  # ===================================================================
+  # 4 DOCKER BUILD
+  # ===================================================================
+  docker_build_job:
+    needs: package_job 
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Build Docker image locally
-        run: docker build -t prime-checker .
+      - name: Download DEB package for Docker
+        uses: actions/download-artifact@v4
+        with:
+          name: prime-checker-deb
+          path: ./ 
 
-      - name: Run container to test binary
-        run: echo "17" | docker run --rm -i prime-checker
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./Dockerfile 
+          push: false 
+          load: true 
+          tags: prime-checker-latest 
+
+      - name: Save Docker image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: prime-checker-docker-image
+          path: docker-image.tar

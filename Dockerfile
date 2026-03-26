@@ -1,25 +1,46 @@
+# ===================================================================
+# 1 Сборка приложения
+# ===================================================================
+FROM ubuntu:22.04 AS builder
 
-# --------------------------------------------------------------------
-# ЭТАП 1
-# --------------------------------------------------------------------
-FROM debian:bookworm AS builder
+RUN apt-get update && \
+    apt-get install -y build-essential && \
+    rm -rf /var/lib/apt/lists/*
 
-# Рабочая директория
+COPY . /app
 WORKDIR /app
 
-# Копируем исходный код и Makefile
-COPY . .
+RUN make build
 
-RUN apt-get update && apt-get install -y build-essential dpkg-dev
-RUN ln -s /usr/bin/true /usr/bin/sudo
-# Запуск сборки
-RUN make all 
-# --------------------------------------------------------------------
-# ЭТАП 2
-# --------------------------------------------------------------------
-FROM debian:bookworm-slim
+# ===================================================================
+# 2 Создание DEB пакета
+# ===================================================================
+FROM ubuntu:22.04 AS deb_package
 
-WORKDIR /usr/bin/
+RUN apt-get update && \
+    apt-get install -y dpkg-dev && \
+    rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /app/prime-checker .
-ENTRYPOINT ["prime-checker"]
+COPY --from=builder /app/prime_checker /app/prime_checker
+
+COPY Makefile .
+
+WORKDIR /app
+
+RUN make package 
+
+# ===================================================================
+# 3 Финальный образ 
+# ===================================================================
+FROM ubuntu:22.04
+
+RUN apt-get update && \
+    apt-get install -y dpkg-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=deb_package /app/*.deb /app/
+
+RUN dpkg -i /app/*.deb && \
+    rm /app/*.deb && \
+    rm -rf /app 
+ENTRYPOINT ["prime_checker"]

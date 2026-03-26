@@ -1,104 +1,110 @@
 # ====================================================================
 # Настройки проекта
 # ====================================================================
-
-# Имя исполняемого файла
-TARGET = prime-checker
-
-# Имя исходного файла
+TARGET = prime_checker
 SRC = ConsoleApplication6.cpp
-
-# Компилятор C++
 CXX = g++
-
-# Флаги компиляции:
 CXXFLAGS = -Wall -Wextra -std=c++17 -O2
-
-# Имя временной папки и DEB файла
-PKG_NAME = prime-checker-1.0
+PKG_NAME = prime_checker-1.0
 DEB_FILE = $(PKG_NAME).deb
-
-# ====================================================================
-# Цели 
-# ====================================================================
 
 # Цель по умолчанию 
 .PHONY: all
-all: $(TARGET)
+all: build
 
 # --------------------------------------------------------------------
-# Подготовка среды (Установка зависимостей)
+# 0. Подготовка среды 
 # --------------------------------------------------------------------
 .PHONY: setup
 setup:
-	@echo "--- Checking and installing necessary build tools via apt ---"
+	@echo "--- Проверка и установка необходимых инструментов ---"
 	@command -v apt >/dev/null 2>&1 || { \
         echo >&2 "ERROR: apt package manager not found. This script is for Debian/Ubuntu systems."; \
         exit 1; \
     }
-	# Установка build-essential (для компиляции) и dpkg-dev (для создания .deb)
-	sudo apt update && sudo apt install -y build-essential dpkg-dev
+	
+	sudo apt update
+	
+	@dpkg -s build-essential >/dev/null 2>&1 || { \
+        echo "Пакет build-essential не найден. Установка..."; \
+        sudo apt install -y build-essential; \
+    }
+	
+	@dpkg -s dpkg-dev >/dev/null 2>&1 || { \
+        echo "Пакет dpkg-dev не найден. Установка..."; \
+        sudo apt install -y dpkg-dev; \
+    }
+	@echo "Проверка зависимостей сборки завершена."
 
 # --------------------------------------------------------------------
 # 1. Сборка 
 # --------------------------------------------------------------------
-$(TARGET): setup $(SRC)
-	@echo "--- Компиляция $(SRC) с флагами: $(CXXFLAGS) ---"
+.PHONY: build
+build: setup $(SRC)
+	@echo "--- Компиляция $(SRC) ---"
 	$(CXX) $(CXXFLAGS) $(SRC) -o $(TARGET)
 
+# --------------------------------------------------------------------
+# 2. Тестирование
+# --------------------------------------------------------------------
+.PHONY: test
+test: build
+	@echo "--- Запуск тестов ---"
+	
+	# Тест 1: Составное число (17)
+	echo "17" | ./$(TARGET) 2>&1 | grep -q "is a prime number" || { echo "FAIL: 17"; exit 1; }
+	
+	# Тест 2: Составное число (18)
+	echo "18" | ./$(TARGET) 2>&1 | grep -q "is not a prime number" || { echo "FAIL: 18"; exit 1; }
+
+	# Тест 3: Некорректный ввод (abc)
+	echo "abc" | ./$(TARGET) 2>&1 | grep -q "Error" || { echo "FAIL: abc"; exit 1; }
+	
+	@echo "Тест 4.1: Проверка нижней границы (0)..."
+	echo "0" | ./$(TARGET) 2>&1 | grep -q "Error: Number is out of the valid range" || { echo "FAIL: 0"; exit 1; }
+
+	# Тест 4.2: Верхняя граница (2,000,000,000) 
+	@echo "Тест 4.2: Проверка верхней границы (2000000000)..."
+	echo "2000000000" | ./$(TARGET) 2>&1 | grep -q "is not a prime number" || { echo "FAIL: 2000000000"; exit 1; }
+
+	# Тест 4.3: Выход за верхнюю границу (2,000,000,001) - Ожидается ошибка диапазона
+	@echo "Тест 4.3: Проверка выхода за границу (2000000001)..."
+	echo "2000000001" | ./$(TARGET) 2>&1 | grep -q "Error: Number is out of the valid range" || { echo "FAIL: 2000000001"; exit 1; }
+
+	@echo "--- Тесты пройдены ---"
 
 # --------------------------------------------------------------------
-# 2. Создание пакета DEB 
+# 3. Упаковка 
 # --------------------------------------------------------------------
 .PHONY: package
-package: clean setup all
-	@echo "--- Подготовка структуры пакета DEB ---"
+package: build test  
+	@echo "--- Создание пакета .deb ---"
 	
-	# Проверка dpkg-deb
-	@command -v dpkg-deb >/dev/null 2>&1 || { \
-        echo >&2 "ERROR: dpkg-deb tool not found even after setup."; \
-        exit 1; \
-    }
-	
-	# 1. Создание временной структуры
-	rm -rf $(PKG_NAME)
+	# Подготовка структуры
 	mkdir -p $(PKG_NAME)/usr/bin
 	
-	# 2. Копирование готового исполняемого файла
+	# Копирование скомпилированного файла в структуру пакета
 	cp $(TARGET) $(PKG_NAME)/usr/bin/
 	
-	# 3. Создание директории DEBIAN и файла control
+	# Создание control-файла
 	mkdir -p $(PKG_NAME)/DEBIAN
 	echo "Package: prime-checker" > $(PKG_NAME)/DEBIAN/control
 	echo "Version: 1.0" >> $(PKG_NAME)/DEBIAN/control
 	echo "Architecture: amd64" >> $(PKG_NAME)/DEBIAN/control
 	echo "Maintainer: Team Name <team.email@example.com>" >> $(PKG_NAME)/DEBIAN/control 
+	echo "Depends: libc6 (>= 2.29), libstdc++6 (>= 9)" >> $(PKG_NAME)/DEBIAN/control 
+	echo "Description: A simple C++ prime number checker tool." >> $(PKG_NAME)/DEBIAN/control
 
-	echo "Depends: build-essential" >> $(PKG_NAME)/DEBIAN/control 
-	echo "Description: A simple C++ prime number checker tool for command line." >> $(PKG_NAME)/DEBIAN/control
-
-	# 4. Сборка .deb пакета
+	# Сборка пакета
 	dpkg-deb --build $(PKG_NAME)
+	
 	rm -rf $(PKG_NAME)
 	rm -f $(TARGET)
-	@echo "--------------------------------------------------------------------"
-	@echo "SUCCESS: DEB package created: $(DEB_FILE)"
-	@echo "--------------------------------------------------------------------"
 
 # --------------------------------------------------------------------
-# 3. Установка созданного пакета
+# 4. Установка созданного пакета 
 # --------------------------------------------------------------------
 .PHONY: install
 install: package
-	@echo "--- Installing the generated DEB package using apt ---"
+	@echo "--- Установка пакета (зависимости будут скачаны автоматически) ---"
 	sudo apt install -y ./$(DEB_FILE)
-
-# --------------------------------------------------------------------
-# Очистка
-# --------------------------------------------------------------------
-.PHONY: clean
-clean:
-	@echo "Очистка сгенерированных файлов..."
-	rm -f $(TARGET)
-	rm -f $(DEB_FILE)
-	rm -rf $(PKG_NAME)
