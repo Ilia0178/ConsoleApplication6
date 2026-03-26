@@ -15,27 +15,28 @@ all: build
 # --------------------------------------------------------------------
 # 0. Подготовка среды 
 # --------------------------------------------------------------------
+SUDO := $(shell command -v sudo >/dev/null 2>&1 && echo "sudo" || echo "")
+
 .PHONY: setup
 setup:
 	@echo "--- Проверка и установка необходимых инструментов ---"
 	@command -v apt >/dev/null 2>&1 || { \
-        echo >&2 "ERROR: apt package manager not found. This script is for Debian/Ubuntu systems."; \
+        echo >&2 "ERROR: apt package manager not found."; \
         exit 1; \
     }
 	
-	sudo apt update
+	@$(SUDO) apt update
 	
 	@dpkg -s build-essential >/dev/null 2>&1 || { \
         echo "Пакет build-essential не найден. Установка..."; \
-        sudo apt install -y build-essential; \
+        $(SUDO) apt install -y build-essential; \
     }
 	
 	@dpkg -s dpkg-dev >/dev/null 2>&1 || { \
         echo "Пакет dpkg-dev не найден. Установка..."; \
-        sudo apt install -y dpkg-dev; \
+        $(SUDO) apt install -y dpkg-dev; \
     }
 	@echo "Проверка зависимостей сборки завершена."
-
 # --------------------------------------------------------------------
 # 1. Сборка 
 # --------------------------------------------------------------------
