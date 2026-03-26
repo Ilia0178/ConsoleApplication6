@@ -18,14 +18,13 @@ RUN make build
 FROM ubuntu:22.04 AS deb_package
 
 RUN apt-get update && \
-    apt-get install -y dpkg-dev && \
+    apt-get install -y dpkg-dev make && \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /app/prime_checker /app/prime_checker
-
-COPY Makefile .
-
+COPY . /app
 WORKDIR /app
+
+COPY --from=builder /app/prime_checker /app/prime_checker
 
 RUN make package 
 
