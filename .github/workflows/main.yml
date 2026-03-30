@@ -123,9 +123,8 @@ jobs:
           # Используем секрет с логином для формирования полного имени репозитория
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest
 
-      - name: Save Docker image to tar artifact
-        # Здесь тоже используем секрет, чтобы команда docker save знала правильное имя образа
-        run: docker save ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest -o docker-image.tar
+      #- name: Save Docker image to tar artifact
+        #run: docker save ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest -o docker-image.tar
 
       - name: Upload Docker image artifact
         uses: actions/upload-artifact@v4
