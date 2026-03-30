@@ -16,41 +16,51 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential
+          sudo rm -rf /var/lib/apt/lists/* # Добавляем очистку
 
       - name: Compile Code (make build)
         run: make build
+        
       - name: Save compiled binary artifact
         uses: actions/upload-artifact@v4
         with:
-          name: prime_checker_binary
-          path: prime_checker
+          name: prime_checker_binary # Имя артефакта
+          path: prime_checker # Путь к бинарному файлу, который нужно загрузить
 
   # ===================================================================
   # 2 TEST
   # ===================================================================
   test_job:
-    needs: build_job
+    needs: build_job # Зависит от успешного завершения build_job
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        # Если make test зависит от истории коммитов, установите fetch-depth.
+        # Для простых тестов, где нужна только текущая версия, это может быть необязательно.
+        # fetch-depth: 0 # Или fetch-depth: 2, если нужна история
         
       - name: Download binary for testing
         uses: actions/download-artifact@v4
         with:
-          name: prime_checker_binary
-          path: ./
+          name: prime_checker_binary # Загружаем артефакт 'prime_checker_binary'
+          path: ./ # Сохраняем в корне рабочей директории
           
+      - name: Make sure binary is executable
+        run: chmod +x prime_checker # Делаем файл исполняемым, если это необходимо
+
       - name: Run Tests (make test)
         run: |
-          chmod +x prime_checker
+          # Убедимся, что исполняемый файл prime_checker доступен в текущей директории.
+          # Если make test ожидает, что prime_checker находится в PATH,
+          # вам, возможно, придется добавить './' в PATH или запустить его напрямую.
           make test
 
   # ===================================================================
   # 3 PACKAGE
   # ===================================================================
   package_job:
-    needs: test_job
+    needs: test_job # Зависит от успешного завершения test_job
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -59,56 +69,67 @@ jobs:
       - name: Install packaging tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y dpkg-dev 
+          sudo apt-get install -y dpkg-dev
+          sudo rm -rf /var/lib/apt/lists/* # Очистка apt-кеша
+
+      - name: Download compiled binary for packaging
+        uses: actions/download-artifact@v4
+        with:
+          name: prime_checker_binary # Скачиваем бинарник из build_job
+          path: ./ # Сохраняем в корне рабочей директории
 
       - name: Run Package (make package)
-        run: make package
+        run: |
+          # Внимание: Убедитесь, что ваш 'make package' настроен так,
+          # чтобы он использовал prime_checker, который находится в текущей директории.
+          # Возможно, придется передать путь к бинарнику через переменную окружения
+          # или подправить Makefile, чтобы он копировал prime_checker
+          # в структуру пакета, а не компилировал заново.
+          make package
 
       - name: Upload DEB package artifact
         uses: actions/upload-artifact@v4
         with:
           name: prime-checker-deb
-          path: ./*.deb
+          path: ./*.deb # Загружаем созданный .deb пакет
 
   # ===================================================================
   # 4 DOCKER BUILD
   # ===================================================================
-  docker_build_job:
-    needs: package_job
+  docker_build_and_push:
+    needs: package_job # Зависит от успешного создания .deb пакета
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download DEB package for Docker
+      - name: Download DEB package for Docker build
         uses: actions/download-artifact@v4
         with:
-          name: prime-checker-deb
+          name: prime-checker-deb # Загружаем .deb пакет
           path: ./ 
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          password: ${{ secrets.DOCKERHUB_TOKEN_FOR_LOGIN }}
 
       - name: Build and push Docker image to Docker Hub
         uses: docker/build-push-action@v4
         with:
           context: .
           file: ./Dockerfile
-          push: true 
-          tags: | 
-            your-dockerhub-username/prime-checker:latest 
-            prime-checker-latest 
+          push: true
+          tags: |
+            your-dockerhub-username/prime-checker:latest
 
-
+      # Опционально: Сохранение как tar.gz артефакт
       - name: Save Docker image to tar artifact
-        run: docker save prime-checker-latest -o docker-image.tar
+        run: docker save your-dockerhub-username/prime-checker:latest -o docker-image.tar
 
       - name: Upload Docker image artifact
         uses: actions/upload-artifact@v4
