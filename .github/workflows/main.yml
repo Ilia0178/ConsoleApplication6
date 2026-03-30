@@ -16,7 +16,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential
-          sudo rm -rf /var/lib/apt/lists/* # Добавляем очистку
+          sudo rm -rf /var/lib/apt/lists/* 
 
       - name: Compile Code (make build)
         run: make build
@@ -47,9 +47,6 @@ jobs:
 
       - name: Run Tests (make test)
         run: |
-          # Убедимся, что исполняемый файл prime_checker доступен в текущей директории.
-          # Если make test ожидает, что prime_checker находится в PATH,
-          # вам, возможно, придется добавить './' в PATH или запустить его напрямую.
           make test
 
   # ===================================================================
@@ -76,11 +73,6 @@ jobs:
 
       - name: Run Package (make package)
         run: |
-          # Внимание: Убедитесь, что ваш 'make package' настроен так,
-          # чтобы он использовал prime_checker, который находится в текущей директории.
-          # Возможно, придется передать путь к бинарнику через переменную окружения
-          # или подправить Makefile, чтобы он копировал prime_checker
-          # в структуру пакета, а не компилировал заново.
           make package
 
       - name: Upload DEB package artifact
@@ -120,14 +112,4 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          # Используем секрет с логином для формирования полного имени репозитория
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest
-
-      #- name: Save Docker image to tar artifact
-        #run: docker save ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest -o docker-image.tar
-
-      - name: Upload Docker image artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: prime-checker-docker-image 
-          path: docker-image.tar
