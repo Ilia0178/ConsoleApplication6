@@ -85,10 +85,10 @@ jobs:
   # 4 DOCKER BUILD
   # ===================================================================
   docker_build_and_push:
-    needs: package_job 
+    needs: package_job
     runs-on: ubuntu-latest
     steps:
-      # 1. Checkout код (нужно, чтобы Dockerfile был доступен)
+      # 1. Checkout кода (чтобы Dockerfile был доступен)
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -96,7 +96,7 @@ jobs:
       - name: Download DEB package for Docker build
         uses: actions/download-artifact@v4
         with:
-          name: prime-checker-deb 
+          name: prime-checker-deb
           path: ./  # сохраняем в корень репозитория
 
       # 3. Устанавливаем Docker Buildx
@@ -114,7 +114,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v4
         with:
-          context: .  # контекст сборки — текущая директория
+          context: .
           file: ./Dockerfile
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest
