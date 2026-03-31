@@ -85,6 +85,7 @@ jobs:
   # 4 DOCKER BUILD
   # ===================================================================
   docker_build_and_push:
+    needs: package_job
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
