@@ -85,18 +85,10 @@ jobs:
   # 4 DOCKER BUILD
   # ===================================================================
   docker_build_and_push:
-    needs: package_job
     runs-on: ubuntu-latest
     steps:
-
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Download DEB package for Docker build
-        uses: actions/download-artifact@v4
-        with:
-          name: prime-checker-deb
-          path: ./ 
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
