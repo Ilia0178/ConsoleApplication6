@@ -9,4 +9,6 @@ COPY prime-checker.deb /tmp/prime_checker.deb
 RUN dpkg -i /tmp/prime_checker.deb || apt-get install -f -y && \
     rm /tmp/prime_checker.deb
 
+RUN chmod +x /usr/bin/prime_checker
+
 ENTRYPOINT ["/usr/bin/prime_checker"]
