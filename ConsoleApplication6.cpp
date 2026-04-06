@@ -48,10 +48,10 @@ bool isPrime(long long n) {
     return true;
 }
 
+// Убрали неиспользуемый аргумент invalid_input_total, чтобы не было warning
 void process_input(long long n,
                    Counter& checked_numbers_total,
                    Counter& prime_numbers_found_total,
-                   Counter& invalid_input_total,
                    Counter& out_of_range_total) {
 
     checked_numbers_total.Increment();
@@ -70,7 +70,6 @@ void process_input(long long n,
     }
 }
 
-// main функция (с использованием синтаксиса для prometheus-cpp v0.x)
 int main() {
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
@@ -78,29 +77,26 @@ int main() {
     const int PROMETHEUS_PORT = 9090; 
     auto registry = std::make_shared<Registry>();
 
-    // --- Регистрация метрик для prometheus-cpp v0.x ---
-    // Здесь используется метод addCounter()
-    auto& checked_numbers_total = registry->addCounter(
-        "prime_checks_total",
-        "Total number of prime checks performed"
-    );
+    // Используем фабрику BuildCounter - это самый надежный способ регистрации
+    auto& checked_numbers_total = BuildCounter()
+        .Name("prime_checks_total")
+        .Help("Total number of prime checks performed")
+        .Register(*registry);
 
-    auto& prime_numbers_found_total = registry->addCounter(
-        "prime_numbers_found_total",
-        "Total number of prime numbers found"
-    );
+    auto& prime_numbers_found_total = BuildCounter()
+        .Name("prime_numbers_found_total")
+        .Help("Total number of prime numbers found")
+        .Register(*registry);
 
-    auto& invalid_input_total = registry->addCounter(
-        "invalid_input_total",
-        "Total count of invalid inputs"
-    );
+    auto& invalid_input_total = BuildCounter()
+        .Name("invalid_input_total")
+        .Help("Total count of invalid inputs")
+        .Register(*registry);
 
-    auto& out_of_range_total = registry->addCounter(
-        "out_of_range_input_total",
-        "Total count of inputs outside the valid range"
-    );
-    // --- Конец регистрации метрик v0.x ---
-
+    auto& out_of_range_total = BuildCounter()
+        .Name("out_of_range_input_total")
+        .Help("Total count of inputs outside the valid range")
+        .Register(*registry);
 
     bool interactive = isatty(fileno(stdin));
     std::thread exporter_thread(run_prometheus_exporter, PROMETHEUS_PORT, registry);
@@ -114,20 +110,19 @@ int main() {
             
             try {
                 long long n = std::stoll(input_line);
-                process_input(n, checked_numbers_total, prime_numbers_found_total, invalid_input_total, out_of_range_total);
+                process_input(n, checked_numbers_total, prime_numbers_found_total, out_of_range_total);
             } catch (...) {
                 invalid_input_total.Increment();
                 std::cerr << "Invalid input." << std::endl;
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
-    } else { // Неинтерактивный режим
+    } else {
         std::string input_line;
         while (std::getline(std::cin, input_line)) {
             if (input_line.empty()) continue;
             try {
                 long long n = std::stoll(input_line);
-                process_input(n, checked_numbers_total, prime_numbers_found_total, invalid_input_total, out_of_range_total);
+                process_input(n, checked_numbers_total, prime_numbers_found_total, out_of_range_total);
             } catch (...) {
                 invalid_input_total.Increment();
             }
