@@ -12,16 +12,24 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         
-      # Обновляем установку инструментов, чтобы включить зависимости для prometheus-cpp
       - name: Install build tools and Prometheus dependencies
         run: |
           sudo apt-get update
-          # Добавляем libcurl4-openssl-dev и zlib1g-dev для prometheus-cpp
-          # А также cmake и git, если prometheus-cpp будет собираться из исходников
           sudo apt-get install -y build-essential cmake git libcurl4-openssl-dev zlib1g-dev
           sudo rm -rf /var/lib/apt/lists/* 
 
-      # Команда make build сама подтянет LDFLAGS из Makefile
+      # --- ДОБАВЛЕННЫЙ ШАГ: Сборка и установка prometheus-cpp ---
+      - name: Build and Install Prometheus-cpp
+        run: |
+          git clone --recursive https://github.com/jupp0r/prometheus-cpp.git /tmp/prometheus-cpp
+          cd /tmp/prometheus-cpp
+          mkdir build && cd build
+          cmake .. -DBUILD_SHARED_LIBS=ON -DENABLE_PUSH=OFF
+          make -j4
+          sudo make install
+          sudo ldconfig # Важно для обновления кэша библиотек
+
+      # Команда make build теперь увидит установленные заголовки и библиотеки
       - name: Compile Code (make build)
         run: make build
         

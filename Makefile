@@ -7,7 +7,7 @@ CXX = g++
 # -pthread для поддержки потоков
 CXXFLAGS = -Wall -Wextra -std=c++17 -O2 -pthread -I/usr/local/include
 # библиотеки для Prometheus
-LDFLAGS = -lprometheus-cpp-core -lprometheus-cpp-pull
+LDFLAGS = -L/usr/local/lib -lprometheus-cpp-core -lprometheus-cpp-pull
 PKG_NAME = prime-checker
 DEB_FILE = $(PKG_NAME).deb
 
@@ -32,7 +32,6 @@ setup:
 # --------------------------------------------------------------------
 .PHONY: build
 build: setup $(SRC)
-	@echo "--- Компиляция $(SRC) с поддержкой Prometheus ---"
 	$(CXX) $(CXXFLAGS) $(SRC) -o $(TARGET) $(LDFLAGS)
 
 # --------------------------------------------------------------------
