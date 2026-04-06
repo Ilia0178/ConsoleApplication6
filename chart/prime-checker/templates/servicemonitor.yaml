@@ -1,0 +1,14 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "prime-checker.fullname" . }}
+  labels:
+    release: prometheus # ВАЖНО: это имя релиза вашего prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app: prime-checker
+  endpoints:
+  - port: metrics
+    path: /metrics
+    interval: 15s

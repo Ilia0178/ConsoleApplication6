@@ -4,7 +4,10 @@
 TARGET = prime_checker
 SRC = ConsoleApplication6.cpp
 CXX = g++
-CXXFLAGS = -Wall -Wextra -std=c++17 -O2
+# -pthread для поддержки потоков
+CXXFLAGS = -Wall -Wextra -std=c++17 -O2 -pthread
+# библиотеки для Prometheus
+LDFLAGS = -lprometheus-cpp-core -lprometheus-cpp-pull
 PKG_NAME = prime-checker
 DEB_FILE = $(PKG_NAME).deb
 
@@ -19,31 +22,18 @@ SUDO := $(shell command -v sudo >/dev/null 2>&1 && echo "sudo" || echo "")
 
 .PHONY: setup
 setup:
-	@echo "--- Проверка и установка необходимых инструментов ---"
-	@command -v apt >/dev/null 2>&1 || { \
-        echo >&2 "ERROR: apt package manager not found."; \
-        exit 1; \
-    }
-	
+	@echo "--- Проверка и установка зависимостей ---"
 	@$(SUDO) apt update
-	
-	@dpkg -s build-essential >/dev/null 2>&1 || { \
-        echo "Пакет build-essential не найден. Установка..."; \
-        $(SUDO) apt install -y build-essential; \
-    }
-	
-	@dpkg -s dpkg-dev >/dev/null 2>&1 || { \
-        echo "Пакет dpkg-dev не найден. Установка..."; \
-        $(SUDO) apt install -y dpkg-dev; \
-    }
-	@echo "Проверка зависимостей сборки завершена."
+	@$(SUDO) apt install -y build-essential dpkg-dev libcurl4-openssl-dev zlib1g-dev
+	@echo "Зависимости установлены."
+
 # --------------------------------------------------------------------
 # 1. Сборка 
 # --------------------------------------------------------------------
 .PHONY: build
 build: setup $(SRC)
-	@echo "--- Компиляция $(SRC) ---"
-	$(CXX) $(CXXFLAGS) $(SRC) -o $(TARGET)
+	@echo "--- Компиляция $(SRC) с поддержкой Prometheus ---"
+	$(CXX) $(CXXFLAGS) $(SRC) -o $(TARGET) $(LDFLAGS)
 
 # --------------------------------------------------------------------
 # 2. Тестирование
@@ -51,28 +41,15 @@ build: setup $(SRC)
 .PHONY: test
 test:
 	@echo "--- Запуск тестов ---"
-	
-	# Тест 1: Составное число (17)
 	echo "17" | ./$(TARGET) 2>&1 | grep -q "is a prime number" || { echo "FAIL: 17"; exit 1; }
-	
-	# Тест 2: Составное число (18)
 	echo "18" | ./$(TARGET) 2>&1 | grep -q "is not a prime number" || { echo "FAIL: 18"; exit 1; }
-
-	# Тест 3: Некорректный ввод (abc)
 	echo "abc" | ./$(TARGET) 2>&1 | grep -q "Error" || { echo "FAIL: abc"; exit 1; }
-	
-	@echo "Тест 4.1: Проверка нижней границы (0)..."
 	echo "0" | ./$(TARGET) 2>&1 | grep -q "Error: Number is out of the valid range" || { echo "FAIL: 0"; exit 1; }
-
-	# Тест 4.2: Верхняя граница (2,000,000,000) 
-	@echo "Тест 4.2: Проверка верхней границы (2000000000)..."
 	echo "2000000000" | ./$(TARGET) 2>&1 | grep -q "is not a prime number" || { echo "FAIL: 2000000000"; exit 1; }
-
-	# Тест 4.3: Выход за верхнюю границу (2,000,000,001) - Ожидается ошибка диапазона
-	@echo "Тест 4.3: Проверка выхода за границу (2000000001)..."
 	echo "2000000001" | ./$(TARGET) 2>&1 | grep -q "Error: Number is out of the valid range" || { echo "FAIL: 2000000001"; exit 1; }
-
 	@echo "--- Тесты пройдены ---"
+
+
 
 # --------------------------------------------------------------------
 # 3. Упаковка 

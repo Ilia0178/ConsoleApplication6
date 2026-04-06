@@ -1,0 +1,17 @@
+replicaCount: 1
+image:
+  repository: your-dockerhub-user/prime-checker
+  tag: latest
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  port: 9090 # Порт, на который мы будем стучаться
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi

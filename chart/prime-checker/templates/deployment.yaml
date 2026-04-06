@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "prime-checker.fullname" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: prime-checker
+  template:
+    metadata:
+      labels:
+        app: prime-checker
+    spec:
+      containers:
+      - name: prime-checker
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        ports:
+        - containerPort: {{ .Values.service.port }}
+          name: metrics
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}

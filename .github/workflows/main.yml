@@ -12,12 +12,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         
-      - name: Install build tools
+      # Обновляем установку инструментов, чтобы включить зависимости для prometheus-cpp
+      - name: Install build tools and Prometheus dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential
+          # Добавляем libcurl4-openssl-dev и zlib1g-dev для prometheus-cpp
+          # А также cmake и git, если prometheus-cpp будет собираться из исходников
+          sudo apt-get install -y build-essential cmake git libcurl4-openssl-dev zlib1g-dev
           sudo rm -rf /var/lib/apt/lists/* 
 
+      # Команда make build сама подтянет LDFLAGS из Makefile
       - name: Compile Code (make build)
         run: make build
         
@@ -45,9 +49,9 @@ jobs:
       - name: Make sure binary is executable
         run: chmod +x prime_checker 
 
+      # Тесты будут проходить, так как main() теперь знает, как работать в неинтерактивном режиме
       - name: Run Tests (make test)
-        run: |
-          make test
+        run: make test
 
   # ===================================================================
   # 3 PACKAGE
@@ -59,10 +63,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         
-      - name: Install packaging tools
+      # Добавляем зависимости для prometheus-cpp, если они нужны для сборки .deb
+      # Если prometheus-cpp уже статически слинкован в бинарник, и .deb требует только этот бинарник
+      # то установка здесь может быть не критичной. Но для надежности:
+      - name: Install packaging tools and Prometheus dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y dpkg-dev
+          # dpkg-dev для самой упаковки
+          # libcurl4-openssl-dev и zlib1g-dev, если они нужны для создания .deb или если бинарник динамически их требует
+          sudo apt-get install -y dpkg-dev libcurl4-openssl-dev zlib1g-dev
           sudo rm -rf /var/lib/apt/lists/* # Очистка apt-кеша
 
       - name: Download compiled binary for packaging
@@ -73,6 +82,7 @@ jobs:
 
       - name: Run Package (make package)
         run: |
+          # make package должен использовать новый CXXFLAGS и LDFLAGS из Makefile
           make package
 
       - name: Upload DEB package artifact
@@ -85,11 +95,17 @@ jobs:
   # 4 DOCKER BUILD
   # ===================================================================
   docker_build_and_push:
-    needs: package_job
+    needs: package_job 
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Download DEB package for Docker build
+        uses: actions/download-artifact@v4
+        with:
+          name: prime-checker-deb 
+          path: ./ 
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
@@ -104,6 +120,6 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: .
-          file: ./Dockerfile
+          file: ./Dockerfile 
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest
