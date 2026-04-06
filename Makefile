@@ -5,7 +5,7 @@ TARGET = prime_checker
 SRC = ConsoleApplication6.cpp
 CXX = g++
 # -pthread для поддержки потоков
-CXXFLAGS = -Wall -Wextra -std=c++17 -O2 -pthread
+CXXFLAGS = -Wall -Wextra -std=c++17 -O2 -pthread -I/usr/local/include
 # библиотеки для Prometheus
 LDFLAGS = -lprometheus-cpp-core -lprometheus-cpp-pull
 PKG_NAME = prime-checker
