@@ -70,6 +70,7 @@ void process_input(long long n,
     }
 }
 
+// main функция (с использованием синтаксиса для prometheus-cpp v0.x)
 int main() {
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
@@ -77,15 +78,29 @@ int main() {
     const int PROMETHEUS_PORT = 9090; 
     auto registry = std::make_shared<Registry>();
 
-    // Регистрация метрик (современный синтаксис)
-    auto& checked_numbers_total = registry->AddMetricWithLabels<Counter>(
-        "prime_checks_total", "Total checks", {});
-    auto& prime_numbers_found_total = registry->AddMetricWithLabels<Counter>(
-        "prime_numbers_found_total", "Total primes found", {});
-    auto& invalid_input_total = registry->AddMetricWithLabels<Counter>(
-        "invalid_input_total", "Total invalid inputs", {});
-    auto& out_of_range_total = registry->AddMetricWithLabels<Counter>(
-        "out_of_range_input_total", "Total out of range", {});
+    // --- Регистрация метрик для prometheus-cpp v0.x ---
+    // Здесь используется метод addCounter()
+    auto& checked_numbers_total = registry->addCounter(
+        "prime_checks_total",
+        "Total number of prime checks performed"
+    );
+
+    auto& prime_numbers_found_total = registry->addCounter(
+        "prime_numbers_found_total",
+        "Total number of prime numbers found"
+    );
+
+    auto& invalid_input_total = registry->addCounter(
+        "invalid_input_total",
+        "Total count of invalid inputs"
+    );
+
+    auto& out_of_range_total = registry->addCounter(
+        "out_of_range_input_total",
+        "Total count of inputs outside the valid range"
+    );
+    // --- Конец регистрации метрик v0.x ---
+
 
     bool interactive = isatty(fileno(stdin));
     std::thread exporter_thread(run_prometheus_exporter, PROMETHEUS_PORT, registry);
@@ -104,8 +119,9 @@ int main() {
                 invalid_input_total.Increment();
                 std::cerr << "Invalid input." << std::endl;
             }
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
-    } else {
+    } else { // Неинтерактивный режим
         std::string input_line;
         while (std::getline(std::cin, input_line)) {
             if (input_line.empty()) continue;
