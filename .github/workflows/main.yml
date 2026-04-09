@@ -12,34 +12,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         
-      - name: Install build tools and Prometheus dependencies
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential cmake git libcurl4-openssl-dev zlib1g-dev
-          # Для старой версии prometheus-cpp, возможно, потребуется libboost-system-dev
-          # sudo apt-get install -y libboost-system-dev # Раскомментируйте, если будет ошибка компоновки
-          sudo rm -rf /var/lib/apt/lists/* 
-
-      - name: Build and Install Prometheus-cpp (v0.11.2) 
+      
+      - name: Build and Install Prometheus-cpp (Latest)
         run: |
-          # Клонируем конкретный тег (версию), например v0.11.2
-          git clone --recursive --branch v0.11.2 https://github.com/jupp0r/prometheus-cpp.git /tmp/prometheus-cpp
+          git clone --recursive https://github.com/jupp0r/prometheus-cpp.git /tmp/prometheus-cpp
           cd /tmp/prometheus-cpp
           mkdir build && cd build
-          # Убедимся, что опции cmake подходят для v0.11.2
-          # -DBUILD_SHARED_LIBS=ON -DENABLE_PUSH=OFF -DBUILD_PULL=ON
-          # ENABLE_PUSH=OFF - это нормально, если вы не используете Pushgateway
-          # ENABLE_PULL=ON - это для экспортера (pull)
-          cmake .. -DBUILD_SHARED_LIBS=ON -DENABLE_PUSH=OFF -DBUILD_PULL=ON 
+          cmake .. -DBUILD_SHARED_LIBS=ON -DENABLE_PUSH=OFF
           make -j4
           sudo make install
-          sudo ldconfig # Обновление кэша библиотек
+          sudo ldconfig
       
-      - name: Compile Code (make build)
-
+      - name: Compile Code
         run: make build 
 
-      - name: Save compiled binary artifact
+      - name: Save artifact
         uses: actions/upload-artifact@v4
         with:
           name: prime_checker_binary 

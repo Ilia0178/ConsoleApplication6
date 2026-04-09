@@ -77,26 +77,26 @@ int main() {
     const int PROMETHEUS_PORT = 9090; 
     auto registry = std::make_shared<Registry>();
 
-    // --- Используем registry->addCounter(...) для prometheus-cpp v0.11.2 ---
-    auto& checked_numbers_total = registry->addCounter(
-        "prime_checks_total",
-        "Total number of prime checks performed"
-    );
+    // --- Используем BuildCounter()...Register(*registry) для актуальной версии prometheus-cpp ---
+    auto& checked_numbers_total = prometheus::BuildCounter()
+        .Name("prime_checks_total")
+        .Help("Total number of prime checks performed")
+        .Register(*registry);
 
-    auto& prime_numbers_found_total = registry->addCounter(
-        "prime_numbers_found_total",
-        "Total number of prime numbers found"
-    );
+    auto& prime_numbers_found_total = prometheus::BuildCounter()
+        .Name("prime_numbers_found_total")
+        .Help("Total number of prime numbers found")
+        .Register(*registry);
 
-    auto& invalid_input_total = registry->addCounter(
-        "invalid_input_total",
-        "Total count of invalid inputs"
-    );
+    auto& invalid_input_total = prometheus::BuildCounter()
+        .Name("invalid_input_total")
+        .Help("Total count of invalid inputs")
+        .Register(*registry);
 
-    auto& out_of_range_total = registry->addCounter(
-        "out_of_range_input_total",
-        "Total count of inputs outside the valid range"
-    );
+    auto& out_of_range_total = prometheus::BuildCounter()
+        .Name("out_of_range_input_total")
+        .Help("Total count of inputs outside the valid range")
+        .Register(*registry);
     // --- Конец регистрации метрик ---
 
     bool interactive = isatty(fileno(stdin));
@@ -111,9 +111,6 @@ int main() {
             
             try {
                 long long n = std::stoll(input_line);
-                // Передаем все метрики, которые могут быть нужны process_input
-                // (включая invalid_input_total, если он инкрементируется внутри process_input)
-                // Однако, согласно process_input, он его не использует, поэтому передаем только нужные.
                 process_input(n, checked_numbers_total, prime_numbers_found_total, out_of_range_total);
             } catch (...) {
                 invalid_input_total.Increment(); // Инкрементируем invalid_input_total напрямую
