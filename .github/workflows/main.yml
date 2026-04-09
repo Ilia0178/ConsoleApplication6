@@ -16,28 +16,34 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential cmake git libcurl4-openssl-dev zlib1g-dev
+          # Для старой версии prometheus-cpp, возможно, потребуется libboost-system-dev
+          # sudo apt-get install -y libboost-system-dev # Раскомментируйте, если будет ошибка компоновки
           sudo rm -rf /var/lib/apt/lists/* 
 
-      # --- ДОБАВЛЕННЫЙ ШАГ: Сборка и установка prometheus-cpp ---
-      - name: Build and Install Prometheus-cpp
+      - name: Build and Install Prometheus-cpp (v0.11.2) 
         run: |
-          git clone --recursive https://github.com/jupp0r/prometheus-cpp.git /tmp/prometheus-cpp
+          # Клонируем конкретный тег (версию), например v0.11.2
+          git clone --recursive --branch v0.11.2 https://github.com/jupp0r/prometheus-cpp.git /tmp/prometheus-cpp
           cd /tmp/prometheus-cpp
           mkdir build && cd build
-          cmake .. -DBUILD_SHARED_LIBS=ON -DENABLE_PUSH=OFF
+          # Убедимся, что опции cmake подходят для v0.11.2
+          # -DBUILD_SHARED_LIBS=ON -DENABLE_PUSH=OFF -DBUILD_PULL=ON
+          # ENABLE_PUSH=OFF - это нормально, если вы не используете Pushgateway
+          # ENABLE_PULL=ON - это для экспортера (pull)
+          cmake .. -DBUILD_SHARED_LIBS=ON -DENABLE_PUSH=OFF -DBUILD_PULL=ON 
           make -j4
           sudo make install
-          sudo ldconfig # Важно для обновления кэша библиотек
-
-      # Команда make build теперь увидит установленные заголовки и библиотеки
+          sudo ldconfig # Обновление кэша библиотек
+      
       - name: Compile Code (make build)
-        run: make build
-        
+
+        run: make build 
+
       - name: Save compiled binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: prime_checker_binary 
-          path: prime_checker 
+          path: prime_checker
   # ===================================================================
   # 2 TEST
   # ===================================================================
