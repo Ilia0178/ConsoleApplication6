@@ -48,7 +48,7 @@ bool isPrime(long long n) {
     return true;
 }
 
-// Убрали неиспользуемый аргумент invalid_input_total, чтобы не было warning
+// Убрали неиспользуемый аргумент invalid_input_total
 void process_input(long long n,
                    Counter& checked_numbers_total,
                    Counter& prime_numbers_found_total,
@@ -77,26 +77,28 @@ int main() {
     const int PROMETHEUS_PORT = 9090; 
     auto registry = std::make_shared<Registry>();
 
-    // Используем фабрику BuildCounter - это самый надежный способ регистрации
-    auto& checked_numbers_total = BuildCounter()
-        .Name("prime_checks_total")
-        .Help("Total number of prime checks performed")
-        .Register(*registry);
+    // --- Используем Registry::Add... для создания метрик без меток ---
+    // Это должно вернуть объект Counter напрямую.
+    auto& checked_numbers_total = registry->AddCounter(
+        "prime_checks_total",
+        "Total number of prime checks performed"
+    );
 
-    auto& prime_numbers_found_total = BuildCounter()
-        .Name("prime_numbers_found_total")
-        .Help("Total number of prime numbers found")
-        .Register(*registry);
+    auto& prime_numbers_found_total = registry->AddCounter(
+        "prime_numbers_found_total",
+        "Total number of prime numbers found"
+    );
 
-    auto& invalid_input_total = BuildCounter()
-        .Name("invalid_input_total")
-        .Help("Total count of invalid inputs")
-        .Register(*registry);
+    auto& invalid_input_total = registry->AddCounter(
+        "invalid_input_total",
+        "Total count of invalid inputs"
+    );
 
-    auto& out_of_range_total = BuildCounter()
-        .Name("out_of_range_input_total")
-        .Help("Total count of inputs outside the valid range")
-        .Register(*registry);
+    auto& out_of_range_total = registry->AddCounter(
+        "out_of_range_input_total",
+        "Total count of inputs outside the valid range"
+    );
+    // --- Конец регистрации метрик ---
 
     bool interactive = isatty(fileno(stdin));
     std::thread exporter_thread(run_prometheus_exporter, PROMETHEUS_PORT, registry);
@@ -110,13 +112,15 @@ int main() {
             
             try {
                 long long n = std::stoll(input_line);
+                // Передаем только те метрики, которые нужны process_input
                 process_input(n, checked_numbers_total, prime_numbers_found_total, out_of_range_total);
             } catch (...) {
-                invalid_input_total.Increment();
+                invalid_input_total.Increment(); // Инкрементируем invalid_input_total напрямую
                 std::cerr << "Invalid input." << std::endl;
             }
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
-    } else {
+    } else { // Неинтерактивный режим
         std::string input_line;
         while (std::getline(std::cin, input_line)) {
             if (input_line.empty()) continue;
@@ -124,7 +128,7 @@ int main() {
                 long long n = std::stoll(input_line);
                 process_input(n, checked_numbers_total, prime_numbers_found_total, out_of_range_total);
             } catch (...) {
-                invalid_input_total.Increment();
+                invalid_input_total.Increment(); // Инкрементируем invalid_input_total напрямую
             }
         }
     }
