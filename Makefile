@@ -41,26 +41,34 @@ build: setup $(SRC)
 test:
 	@echo "--- Запуск тестов ---"
 	
-	# Тест 1: Составное число (17)
-	echo "17" | ./$(TARGET) 2>&1 | grep -q "is a prime number" || { echo "FAIL: 17"; exit 1; }
+	# Установка LD_LIBRARY_PATH перед выполнением тестов
+	export LD_LIBRARY_PATH="/usr/local/lib:$$LD_LIBRARY_PATH" && \
 	
-	# Тест 2: Составное число (18)
-	echo "18" | ./$(TARGET) 2>&1 | grep -q "is not a prime number" || { echo "FAIL: 18"; exit 1; }
-
-	# Тест 3: Некорректный ввод (abc)
-	echo "abc" | ./$(TARGET) 2>&1 | grep -q "Error" || { echo "FAIL: abc"; exit 1; }
+	# --- Тест для 17 (простое число) ---
+	# Захватываем весь вывод (stdout и stderr) в переменную OUTPUT
+	OUTPUT=$$(echo -e "17\n" | ./$(TARGET) 2>&1) && \
+	echo "$$OUTPUT" | grep -F "17 is a prime number." || { echo "FAIL: 17"; echo "Output was: $$OUTPUT"; exit 1; }
 	
-	@echo "Тест 4.1: Проверка нижней границы (0)..."
-	echo "0" | ./$(TARGET) 2>&1 | grep -q "Error: Number is out of the valid range" || { echo "FAIL: 0"; exit 1; }
-
-	# Тест 4.2: Верхняя граница (2,000,000,000) 
-	@echo "Тест 4.2: Проверка верхней границы (2000000000)..."
-	echo "2000000000" | ./$(TARGET) 2>&1 | grep -q "is not a prime number" || { echo "FAIL: 2000000000"; exit 1; }
-
-	# Тест 4.3: Выход за верхнюю границу (2,000,000,001) - Ожидается ошибка диапазона
-	@echo "Тест 4.3: Проверка выхода за границу (2000000001)..."
-	echo "2000000001" | ./$(TARGET) 2>&1 | grep -q "Error: Number is out of the valid range" || { echo "FAIL: 2000000001"; exit 1; }
-
+	# --- Тест для 18 (не простое число) ---
+	OUTPUT=$$(echo -e "18\n" | ./$(TARGET) 2>&1) && \
+	echo "$$OUTPUT" | grep -F "18 is not a prime number." || { echo "FAIL: 18"; echo "Output was: $$OUTPUT"; exit 1; }
+	
+	# --- Тест для некорректного ввода (abc) ---
+	OUTPUT=$$(echo -e "abc\n" | ./$(TARGET) 2>&1) && \
+	echo "$$OUTPUT" | grep -F "Error: Input is not a valid number." || { echo "FAIL: abc"; echo "Output was: $$OUTPUT"; exit 1; }
+	
+	# --- Тест для 0 (вне диапазона) ---
+	OUTPUT=$$(echo -e "0\n" | ./$(TARGET) 2>&1) && \
+	echo "$$OUTPUT" | grep -F "Error: Number is out of the valid range (1 - 2 billion)." || { echo "FAIL: 0"; echo "Output was: $$OUTPUT"; exit 1; }
+	
+	# --- Тест для 2000000000 (граничное значение, не простое) ---
+	OUTPUT=$$(echo -e "2000000000\n" | ./$(TARGET) 2>&1) && \
+	echo "$$OUTPUT" | grep -F "2000000000 is not a prime number." || { echo "FAIL: 2000000000"; echo "Output was: $$OUTPUT"; exit 1; }
+	
+	# --- Тест для 2000000001 (вне диапазона) ---
+	OUTPUT=$$(echo -e "2000000001\n" | ./$(TARGET) 2>&1) && \
+	echo "$$OUTPUT" | grep -F "Error: Number is out of the valid range (1 - 2 billion)." || { echo "FAIL: 2000000001"; echo "Output was: $$OUTPUT"; exit 1; }
+	
 	@echo "--- Тесты пройдены ---"
 
 
