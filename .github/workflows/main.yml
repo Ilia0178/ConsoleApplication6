@@ -54,7 +54,6 @@ jobs:
       - name: Make sure binary is executable
         run: chmod +x prime_checker 
 
-      # Тесты будут проходить, так как main() теперь знает, как работать в неинтерактивном режиме
       - name: Run Tests (make test)
         run: make test
 
