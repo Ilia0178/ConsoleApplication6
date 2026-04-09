@@ -55,8 +55,6 @@ void process_input(long long n,
 
     checked_numbers_total.Increment();
 
-    long long n;
-
     std::cout << "Enter an integer to check (from 1 to 2,000,000,000): ";
 
     if (!(std::cin >> n)) {
