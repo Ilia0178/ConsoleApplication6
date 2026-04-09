@@ -40,21 +40,36 @@ build: setup $(SRC)
 .PHONY: test
 test:
 	@echo "--- Запуск тестов ---"
-	# Проверяем, что программа выводит "17 is a prime number."
-	# Используем diff для сравнения ожидаемого вывода с реальным
-	# Или более простой вариант - grep, но корректно обрабатывая stderr
-	# Тест для 17
-	echo "17" | ./$(TARGET) 2>/dev/null | grep -q "17 is a prime number" || { echo "FAIL: 17"; exit 1; }
-	# Тест для 18
-	echo "18" | ./$(TARGET) 2>/dev/null | grep -q "18 is not a prime number" || { echo "FAIL: 18"; exit 1; }
-	# Тест для некорректного ввода (abc) - ожидаем ошибку в stderr, которая будет перенаправлена в stdout
-	echo "abc" | ./$(TARGET) 2>&1 | grep -q "Invalid input." || { echo "FAIL: abc"; exit 1; }
-	# Тест для 0 (вне диапазона) - ожидаем ошибку в stderr, которая будет перенаправлена в stdout
-	echo "0" | ./$(TARGET) 2>&1 | grep -q "Error: Number is out of range (1 - 2 billion)." || { echo "FAIL: 0"; exit 1; }
-	# Тест для 2000000000 (граничное значение, не простое)
-	echo "2000000000" | ./$(TARGET) 2>/dev/null | grep -q "2000000000 is not a prime number." || { echo "FAIL: 2000000000"; exit 1; }
-	# Тест для 2000000001 (вне диапазона)
-	echo "2000000001" | ./$(TARGET) 2>&1 | grep -q "Error: Number is out of range (1 - 2 billion)." || { echo "FAIL: 2000000001"; exit 1; }
+	
+	# --- Тест для 17 (простое число) ---
+	# Захватываем весь вывод (stdout и stderr) в переменную OUTPUT
+	OUTPUT=$(shell echo "17" | ./$(TARGET) 2>&1)
+	# Проверяем, содержит ли вывод строку "17 is a prime number."
+	echo "$$OUTPUT" | grep -F "17 is a prime number." || { echo "FAIL: 17"; echo "Output was: $$OUTPUT"; exit 1; }
+	
+	# --- Тест для 18 (не простое число) ---
+	OUTPUT=$(shell echo "18" | ./$(TARGET) 2>&1)
+	echo "$$OUTPUT" | grep -F "18 is not a prime number." || { echo "FAIL: 18"; echo "Output was: $$OUTPUT"; exit 1; }
+	
+	# --- Тест для некорректного ввода (abc) ---
+	# Ожидаем ошибку "Invalid input." в stderr, поэтому собираем оба потока (2>&1)
+	OUTPUT=$(shell echo "abc" | ./$(TARGET) 2>&1)
+	echo "$$OUTPUT" | grep -F "Invalid input." || { echo "FAIL: abc"; echo "Output was: $$OUTPUT"; exit 1; }
+	
+	# --- Тест для 0 (вне диапазона) ---
+	# Ожидаем ошибку "Error: Number is out of range..." в stderr
+	OUTPUT=$(shell echo "0" | ./$(TARGET) 2>&1)
+	echo "$$OUTPUT" | grep -F "Error: Number is out of range (1 - 2 billion)." || { echo "FAIL: 0"; echo "Output was: $$OUTPUT"; exit 1; }
+	
+	# --- Тест для 2000000000 (граничное значение, не простое) ---
+	OUTPUT=$(shell echo "2000000000" | ./$(TARGET) 2>&1)
+	echo "$$OUTPUT" | grep -F "2000000000 is not a prime number." || { echo "FAIL: 2000000000"; echo "Output was: $$OUTPUT"; exit 1; }
+	
+	# --- Тест для 2000000001 (вне диапазона) ---
+	# Ожидаем ошибку "Error: Number is out of range..." в stderr
+	OUTPUT=$(shell echo "2000000001" | ./$(TARGET) 2>&1)
+	echo "$$OUTPUT" | grep -F "Error: Number is out of range (1 - 2 billion)." || { echo "FAIL: 2000000001"; echo "Output was: $$OUTPUT"; exit 1; }
+	
 	@echo "--- Тесты пройдены ---"
 
 
