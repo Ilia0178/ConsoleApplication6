@@ -77,27 +77,31 @@ int main() {
     const int PROMETHEUS_PORT = 9090; 
     auto registry = std::make_shared<Registry>();
 
-    // --- Используем BuildCounter()...Register(*registry) для актуальной версии prometheus-cpp ---
-    auto& checked_numbers_total = prometheus::BuildCounter()
+    // --- Исправленный способ получения Counter из Family ---
+    auto& checked_numbers_family = prometheus::BuildCounter()
         .Name("prime_checks_total")
         .Help("Total number of prime checks performed")
         .Register(*registry);
+    auto& checked_numbers_total = checked_numbers_family.Add({}); // Add({}) создает Counter без меток
 
-    auto& prime_numbers_found_total = prometheus::BuildCounter()
+    auto& prime_numbers_found_family = prometheus::BuildCounter()
         .Name("prime_numbers_found_total")
         .Help("Total number of prime numbers found")
         .Register(*registry);
+    auto& prime_numbers_found_total = prime_numbers_found_family.Add({});
 
-    auto& invalid_input_total = prometheus::BuildCounter()
+    auto& invalid_input_family = prometheus::BuildCounter()
         .Name("invalid_input_total")
         .Help("Total count of invalid inputs")
         .Register(*registry);
+    auto& invalid_input_total = invalid_input_family.Add({});
 
-    auto& out_of_range_total = prometheus::BuildCounter()
+    auto& out_of_range_family = prometheus::BuildCounter()
         .Name("out_of_range_input_total")
         .Help("Total count of inputs outside the valid range")
         .Register(*registry);
-    // --- Конец регистрации метрик ---
+    auto& out_of_range_total = out_of_range_family.Add({});
+    // --- Теперь checked_numbers_total и другие имеют тип Counter& ---
 
     bool interactive = isatty(fileno(stdin));
     std::thread exporter_thread(run_prometheus_exporter, PROMETHEUS_PORT, registry);
