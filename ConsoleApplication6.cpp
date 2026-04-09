@@ -48,7 +48,6 @@ bool isPrime(long long n) {
     return true;
 }
 
-// Убрали неиспользуемый аргумент invalid_input_total
 void process_input(long long n,
                    Counter& checked_numbers_total,
                    Counter& prime_numbers_found_total,
@@ -56,16 +55,24 @@ void process_input(long long n,
 
     checked_numbers_total.Increment();
 
+    long long n;
+
+    std::cout << "Enter an integer to check (from 1 to 2,000,000,000): ";
+
+    if (!(std::cin >> n)) {
+        std::cerr << "Error: Input is not a valid number." << std::endl;
+        return 1;
+    }
+
     if (n < 1 || n > 2000000000) {
-        std::cerr << "Error: Number is out of range (1 - 2 billion)." << std::endl;
-        out_of_range_total.Increment();
-        return;
+        std::cerr << "Error: Number is out of the valid range (1 - 2 billion)." << std::endl;
+        return 1;
     }
 
     if (isPrime(n)) {
         std::cout << n << " is a prime number." << std::endl;
-        prime_numbers_found_total.Increment();
-    } else {
+    }
+    else {
         std::cout << n << " is not a prime number." << std::endl;
     }
 }
@@ -101,7 +108,6 @@ int main() {
         .Help("Total count of inputs outside the valid range")
         .Register(*registry);
     auto& out_of_range_total = out_of_range_family.Add({});
-    // --- Теперь checked_numbers_total и другие имеют тип Counter& ---
 
     bool interactive = isatty(fileno(stdin));
     std::thread exporter_thread(run_prometheus_exporter, PROMETHEUS_PORT, registry);
