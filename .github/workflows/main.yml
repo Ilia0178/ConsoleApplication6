@@ -54,7 +54,6 @@ jobs:
       - name: Make sure binary is executable
         run: chmod +x prime_checker 
 
-      # ДОБАВЬТЕ ЭТОТ ШАГ: Установка зависимостей Prometheus
       - name: Install Prometheus dependencies
         run: |
           sudo apt-get update
@@ -71,10 +70,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
-      # Добавляем зависимости для prometheus-cpp, если они нужны для сборки .deb
-      # Если prometheus-cpp уже статически слинкован в бинарник, и .deb требует только этот бинарник
-      # то установка здесь может быть не критичной. Но для надежности:
+
       - name: Install packaging tools and Prometheus dependencies
         run: |
           sudo apt-get update
