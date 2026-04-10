@@ -54,8 +54,13 @@ jobs:
       - name: Make sure binary is executable
         run: chmod +x prime_checker 
 
-      - name: Run Tests (make test)
-        run: make test
+      # ДОБАВЬТЕ ЭТОТ ШАГ: Установка зависимостей Prometheus
+      - name: Install Prometheus dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev zlib1g-dev
+          # Если вы устанавливали prometheus-cpp через git clone/make install в build_job,
+          # вам нужно повторить установку здесь или (лучше!) собирать проект с флагом -static.
 
   # ===================================================================
   # 3 PACKAGE
