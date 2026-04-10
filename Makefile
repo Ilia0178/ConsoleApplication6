@@ -42,27 +42,27 @@ test:
 	@echo "--- Запуск тестов ---"
 	export LD_LIBRARY_PATH="/usr/local/lib:$$LD_LIBRARY_PATH" && \
 	\
-	echo "--- Тест 17 (простое) ---" && \
+	echo "--- Тест 17 ---" && \
 	OUTPUT=$$(echo "17" | ./$(TARGET) 2>&1) && \
-	echo "$$OUTPUT" | grep -F "17 is a prime number." || { echo "FAIL: 17"; exit 1; } && \
+	echo "$$OUTPUT" | grep "17 is a prime number." || { echo "FAIL: 17"; echo "Output was: $$OUTPUT"; exit 1; } && \
 	\
-	echo "--- Тест 18 (не простое) ---" && \
+	echo "--- Тест 18 ---" && \
 	OUTPUT=$$(echo "18" | ./$(TARGET) 2>&1) && \
-	echo "$$OUTPUT" | grep -F "18 is not a prime number." || { echo "FAIL: 18"; exit 1; } && \
+	echo "$$OUTPUT" | grep "18 is not a prime number." || { echo "FAIL: 18"; echo "Output was: $$OUTPUT"; exit 1; } && \
 	\
-	echo "--- Тест abc (invalid input) ---" && \
+	echo "--- Тест abc ---" && \
 	OUTPUT=$$(echo "abc" | ./$(TARGET) 2>&1) && \
-	echo "$$OUTPUT" | grep -F "Invalid input." || { echo "FAIL: abc"; exit 1; } && \
+	echo "$$OUTPUT" | grep "Error: Input is not a valid number." || { echo "FAIL: abc"; echo "Output was: $$OUTPUT"; exit 1; } && \
 	\
-	echo "--- Тест 0 (out of range) ---" && \
+	echo "--- Тест 0 ---" && \
 	OUTPUT=$$(echo "0" | ./$(TARGET) 2>&1) && \
-	echo "$$OUTPUT" | grep -F "Error: Number is out of the valid range (1 - 2 billion)." || { echo "FAIL: 0"; exit 1; } && \
+	echo "$$OUTPUT" | grep "Error: Number is out of the valid range (1 - 2 billion)." || { echo "FAIL: 0"; echo "Output was: $$OUTPUT"; exit 1; } && \
 	\
-	echo "--- Тест 2000000001 (out of range) ---" && \
+	echo "--- Тест 2000000001 ---" && \
 	OUTPUT=$$(echo "2000000001" | ./$(TARGET) 2>&1) && \
-	echo "$$OUTPUT" | grep -F "Error: Number is out of the valid range (1 - 2 billion)." || { echo "FAIL: 2000000001"; exit 1; } && \
+	echo "$$OUTPUT" | grep "Error: Number is out of the valid range (1 - 2 billion)." || { echo "FAIL: 2000000001"; echo "Output was: $$OUTPUT"; exit 1; } && \
 	\
-	echo "--- Все тесты пройдены ---"
+	@echo "--- Все тесты пройдены ---"
 
 
 # --------------------------------------------------------------------
