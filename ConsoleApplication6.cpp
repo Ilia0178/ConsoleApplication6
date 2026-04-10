@@ -55,24 +55,18 @@ void process_input(long long n,
 
     checked_numbers_total.Increment();
 
-std::cout << "Enter an integer to check (from 1 to 2,000,000,000): ";
+    if (n < 1 || n > 2000000000) {
+        std::cerr << "Error: Number is out of the valid range (1 - 2 billion)." << std::endl;
+        out_of_range_total.Increment();
+        return; 
+    }
 
-if (!(std::cin >> n)) {
-    std::cerr << "Error: Input is not a valid number." << std::endl;
-    return 1;
-}
-
-if (n < 1 || n > 2000000000) {
-    std::cerr << "Error: Number is out of the valid range (1 - 2 billion)." << std::endl;
-    return 1;
-}
-
-if (isPrime(n)) {
-    std::cout << n << " is a prime number." << std::endl;
-    prime_numbers_found_total.Increment();
-} else {
-    std::cout << n << " is not a prime number." << std::endl;
-}
+    if (isPrime(n)) {
+        std::cout << n << " is a prime number." << std::endl;
+        prime_numbers_found_total.Increment();
+    } else {
+        std::cout << n << " is not a prime number." << std::endl;
+    }
 }
 
 int main() {

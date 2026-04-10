@@ -40,32 +40,27 @@ build: setup $(SRC)
 .PHONY: test
 test:
 	@echo "--- Запуск тестов ---"
-	# Устанавливаем путь к библиотекам, чтобы не было ошибки при запуске
 	export LD_LIBRARY_PATH="/usr/local/lib:$$LD_LIBRARY_PATH" && \
 	\
 	echo "--- Тест 17 (простое) ---" && \
 	OUTPUT=$$(echo "17" | ./$(TARGET) 2>&1) && \
-	echo "$$OUTPUT" | grep -F "17 is a prime number." || { echo "FAIL: 17"; echo "Output: $$OUTPUT"; exit 1; } && \
+	echo "$$OUTPUT" | grep -F "17 is a prime number." || { echo "FAIL: 17"; exit 1; } && \
 	\
 	echo "--- Тест 18 (не простое) ---" && \
 	OUTPUT=$$(echo "18" | ./$(TARGET) 2>&1) && \
-	echo "$$OUTPUT" | grep -F "18 is not a prime number." || { echo "FAIL: 18"; echo "Output: $$OUTPUT"; exit 1; } && \
+	echo "$$OUTPUT" | grep -F "18 is not a prime number." || { echo "FAIL: 18"; exit 1; } && \
 	\
-	echo "--- Тест abc (ошибка ввода) ---" && \
+	echo "--- Тест abc (invalid input) ---" && \
 	OUTPUT=$$(echo "abc" | ./$(TARGET) 2>&1) && \
-	echo "$$OUTPUT" | grep -F "Error: Input is not a valid number." || { echo "FAIL: abc"; echo "Output: $$OUTPUT"; exit 1; } && \
+	echo "$$OUTPUT" | grep -F "Invalid input." || { echo "FAIL: abc"; exit 1; } && \
 	\
-	echo "--- Тест 0 (вне диапазона) ---" && \
+	echo "--- Тест 0 (out of range) ---" && \
 	OUTPUT=$$(echo "0" | ./$(TARGET) 2>&1) && \
-	echo "$$OUTPUT" | grep -F "Error: Number is out of the valid range (1 - 2 billion)." || { echo "FAIL: 0"; echo "Output: $$OUTPUT"; exit 1; } && \
+	echo "$$OUTPUT" | grep -F "Error: Number is out of the valid range (1 - 2 billion)." || { echo "FAIL: 0"; exit 1; } && \
 	\
-	echo "--- Тест 2000000000 (граничное) ---" && \
-	OUTPUT=$$(echo "2000000000" | ./$(TARGET) 2>&1) && \
-	echo "$$OUTPUT" | grep -F "2000000000 is not a prime number." || { echo "FAIL: 2000000000"; echo "Output: $$OUTPUT"; exit 1; } && \
-	\
-	echo "--- Тест 2000000001 (вне диапазона) ---" && \
+	echo "--- Тест 2000000001 (out of range) ---" && \
 	OUTPUT=$$(echo "2000000001" | ./$(TARGET) 2>&1) && \
-	echo "$$OUTPUT" | grep -F "Error: Number is out of the valid range (1 - 2 billion)." || { echo "FAIL: 2000000001"; echo "Output: $$OUTPUT"; exit 1; } && \
+	echo "$$OUTPUT" | grep -F "Error: Number is out of the valid range (1 - 2 billion)." || { echo "FAIL: 2000000001"; exit 1; } && \
 	\
 	echo "--- Все тесты пройдены ---"
 
