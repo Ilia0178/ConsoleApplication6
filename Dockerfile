@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+COPY . .
 
 RUN git clone --recursive https://github.com/jupp0r/prometheus-cpp.git /tmp/prometheus-cpp && \
     cd /tmp/prometheus-cpp && \
@@ -35,7 +36,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libstdc++6 \
     libcurl4 \
     zlib1g \
-    libssl3 \ # <-- Заменили libssl1.1 на libssl3
+    libssl3 \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
