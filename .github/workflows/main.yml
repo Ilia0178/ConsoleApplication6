@@ -1,10 +1,6 @@
 name: CI/CD Pipeline
 
-on: 
-  push: # Запускать при любом пуше в любую ветку
-  pull_request:
-    branches: [ main ] # Запускать при создании PR в main ветку
-  workflow_dispatch: # Позволяет запускать вручную из UI GitHub
+on: [push]
 
 jobs:
   # ===================================================================
@@ -78,6 +74,8 @@ jobs:
       - name: Install packaging tools and Prometheus dependencies
         run: |
           sudo apt-get update
+          # dpkg-dev для самой упаковки
+          # libcurl4-openssl-dev и zlib1g-dev, если они нужны для создания .deb или если бинарник динамически их требует
           sudo apt-get install -y dpkg-dev libcurl4-openssl-dev zlib1g-dev
           sudo rm -rf /var/lib/apt/lists/* # Очистка apt-кеша
 
@@ -89,24 +87,21 @@ jobs:
 
       - name: Run Package (make package)
         run: |
+          # make package должен использовать новый CXXFLAGS и LDFLAGS из Makefile
           make package
 
       - name: Upload DEB package artifact
         uses: actions/upload-artifact@v4
         with:
           name: prime-checker-deb
-          path: ./*.deb
+          path: ./*.deb 
 
   # ===================================================================
-  # 4 DOCKER BUILD AND PUSH
+  # 4 DOCKER BUILD
   # ===================================================================
   docker_build_and_push:
     needs: package_job 
     runs-on: ubuntu-latest
-    # Если вы хотите, чтобы Docker build/push происходил при любом пуше,
-    # то эту job не нужно ограничивать веткой.
-    # if: github.ref == 'refs/heads/main' # Убрано, чтобы работало при любом пуше
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -124,115 +119,12 @@ jobs:
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }} # Используйте секрет для токена Docker Hub
-
-      - name: Extract package info from DEB
-        id: deb_info
-        run: |
-          DEB_FILE=$(find . -name "*.deb" -print -quit)
-          echo "Found DEB file: $DEB_FILE"
-          APP_NAME=$(basename "$DEB_FILE" | sed -n 's/^\(.*\)_.*_.*\.deb/\1/p')
-          APP_VERSION=$(basename "$DEB_FILE" | sed -n 's/^\(.*\)_\(.*\)_.*\.deb/\2/p')
-          echo "::set-output name=app_name::$APP_NAME"
-          echo "::set-output name=app_version::$APP_VERSION"
-          echo "Extracted App Name: $APP_NAME"
-          echo "Extracted App Version: $APP_VERSION"
+          password: ${{ secrets.DOCKERHUB_TOKEN_FOR_LOGIN }}
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v4
         with:
-          context: . 
+          context: .
           file: ./Dockerfile 
           push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:${{ steps.deb_info.outputs.app_version }} # Тег с версией
-            ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest # Тег latest
-
-  # ===================================================================
-  # 5 DEPLOY TO KUBERNETES
-  # ===================================================================
-  deploy_job:
-    needs: docker_build_and_push # Зависит от успешного сборки и пуша Docker-образа
-    runs-on: ubuntu-latest
-    # Поскольку 'on: [push]' активирует job при любом пуше,
-    # и мы не хотим ограничивать deploy, убираем блок 'if'.
-    # Эта job будет запускаться всегда, если предыдущие jobs прошли успешно.
-
-    steps:
-      - name: Checkout code (for Helm chart)
-        uses: actions/checkout@v4
-        # Если ваш Helm-чарт находится в поддиректории (например, helm-chart/),
-        # используйте: path: helm-chart и обращайтесь к нему как helm-chart/
-
-      # Этот шаг нужен, только если ваш Dockerfile не использует .deb пакет,
-      # а напрямую копирует бинарник. Если Dockerfile использует .deb,
-      # то .deb уже был скачан в docker_build_and_push job.
-      # Предполагаем, что Dockerfile использует .deb, поэтому этот шаг можно удалить
-      # или сделать условным.
-      # - name: Download compiled binary for Docker build (if needed)
-      #   uses: actions/download-artifact@v4
-      #   with:
-      #     name: prime_checker_binary 
-      #     path: ./
-
-      - name: Set up Helm
-        uses: azure/setup-helm@v3
-
-      - name: Configure Kubernetes credentials
-        run: |
-          mkdir -p $HOME/.kube
-          echo "${{ secrets.KUBECONFIG_CONTENT }}" > $HOME/.kube/config # Содержимое вашего KUBECONFIG
-          chmod 600 $HOME/.kube/config
-          echo "KUBECONFIG=$HOME/.kube/config" >> $GITHUB_ENV # Устанавливаем переменную окружения
-          # Укажите правильный контекст, если их несколько в вашем KUBECONFIG
-          kubectl config use-context <your-k8s-context-name> # ЗАМЕНИТЕ НА ИМЯ ВАШЕГО КОНТЕКСТА
-
-      # --- Установка Prometheus (если он еще не установлен в кластере) ---
-      # Этот шаг опционален, если Prometheus уже развернут.
-      # Если вы хотите, чтобы CI/CD разворачивал всё, включая Prometheus:
-      - name: Install Prometheus and Grafana (with Grafana disabled)
-        run: |
-          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-          helm repo update
-          # Установка Prometheus, отключив Grafana
-          helm install prometheus prometheus-community/kube-prometheus-stack \
-            --namespace monitoring \
-            --create-namespace \
-            --set grafana.enabled=false # Отключаем Grafana
-
-      - name: Prepare Helm chart for deployment
-        # Если ваш Helm-чарт находится в поддиректории (например, helm-chart/):
-        # run: |
-        #   cd helm-chart
-        #   helm dependency update # Если есть зависимости в Chart.yaml
-
-        # Если ваш Helm-чарт в корне репозитория:
-        run: |
-          # Обновляем зависимости чарта, если они есть
-          helm dependency update
-          
-          # --- Команда развертывания ---
-          helm upgrade --install my-prime-checker . \ # 'my-prime-checker' - это имя релиза
-            --namespace monitoring \ # Укажите namespace, куда хотите установить приложение
-            # Устанавливаем образ, который был собран и пушнут
-            --set image.repository="${{ secrets.DOCKERHUB_USERNAME }}/prime-checker" \ # Указываем ваш username
-            --set image.tag="${{ steps.deb_info.outputs.app_version }}" \ # Используем тег версии из .deb
-            
-            --set service.port=9090 \
-            --set replicaCount=1 \ 
-
-            --set serviceMonitor.enabled=true \
-            --set serviceMonitor.path=/metrics \
-            --set serviceMonitor.port=metrics \ # Имя порта из service.yaml
-            --set serviceMonitor.interval=15s 
-            
-      - name: Verify deployment
-        run: |
-          # Проверяем, что поды вашего приложения запустились
-          kubectl get pods -n monitoring -l app.kubernetes.io/instance=my-prime-checker
-          sleep 10 # Даем некоторое время для запуска подов
-          kubectl get pods -n monitoring -l app.kubernetes.io/instance=my-prime-checker
-          
-          # Проверяем, что ServiceMonitor найден Prometheus
-          # Имя ServiceMonitor должно быть сформировано Helm: <release-name>-<chart-name>
-          kubectl get servicemonitor -n monitoring my-prime-checker-prime-checker -o yaml
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest
