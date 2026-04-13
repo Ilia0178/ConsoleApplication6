@@ -1,32 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "prime-checker.fullname" . }}
-  labels:
-    {{- include "prime-checker.labels" . | nindent 4 }}
+  name: {{ .Release.Name }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: 1
   selector:
     matchLabels:
-      app: {{ include "prime-checker.selectorLabel" . }}
+      app: prime-checker
   template:
     metadata:
       labels:
-        app: {{ include "prime-checker.selectorLabel" . }}
+        app: prime-checker
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "80"
     spec:
-      # Указываем, что контейнер должен поддерживать интерактивный ввод и TTY.
-      # Это важно, если вы хотите, например, подключаться к запущенному поду для отладки
-      # или если ваш входной поток действительно требует этого.
-      # Для вашего приложения, которое читает из stdin, это хорошая практика.
-      stdin: true
-      tty: true
       containers:
-      - name: {{ .Chart.Name }} # Имя контейнера часто делают равным имени чарта
-        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-        imagePullPolicy: {{ .Values.image.pullPolicy }}
+      - name: prime-checker
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
         ports:
-        - name: metrics # Имя порта, которое будет использоваться в Service и ServiceMonitor
-          containerPort: {{ .Values.service.port }} # Порт, на котором ваше приложение слушает метрики
-          protocol: TCP
-        resources:
-          {{- toYaml .Values.resources | nindent 10 }}
+        - containerPort: 80

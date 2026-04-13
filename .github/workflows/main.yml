@@ -131,59 +131,34 @@ jobs:
   # ===================================================================
   # 5 DEPLOY
   # ===================================================================
-  deploy_job_helm:
-    name: Deploy to Kubernetes (Helm)
-    needs: docker_build_and_push # Зависит от успешной сборки и пуша образа
+  deploy_to_k8s:
+    needs: docker_build_and_push
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
 
-      - name: Configure Kubernetes credentials
+      - name: Configure Kubernetes
         uses: azure/k8s-set-context@v3
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.KUBECONFIG_DATA }}
 
-      - name: Deploy Application using Helm
+      - name: Deploy with Helm
         run: |
-          # Ваш Helm Chart должен находиться в директории './charts/prime-checker'
-          # и должен иметь возможность принимать образ и тег через --set
-
-          # Имя вашего Helm Chart
-          CHART_PATH="./charts/prime-checker"
-          # Имя релиза (произвольное, но уникальное для данного приложения/окружения)
-          RELEASE_NAME="prime-checker-app"
-          # Namespace, куда будет развернуто приложение
-          NAMESPACE="default"
-
-          echo "Deploying application with Helm chart from $CHART_PATH"
-
-          helm upgrade --install $RELEASE_NAME $CHART_PATH \
-            --namespace $NAMESPACE \
+          # Обновляем зависимости (скачает Prometheus из репозитория)
+          helm dependency update ./charts/prime-checker
+          
+          # Развертываем всё вместе
+          helm upgrade --install prime-checker-release ./charts/prime-checker \
             --set image.repository=${{ secrets.DOCKERHUB_USERNAME }}/prime-checker \
-            --set image.tag=latest \
-            --timeout 5m # Таймаут для операции Helm
-
-          # Helm upgrade --install уже ждет, пока ресурсы будут созданы/обновлены,
-          # но для дополнительной уверенности можно добавить проверку rollout status
-          # kubectl rollout status deployment/prime-checker-deployment --timeout=5m # Замените на имя вашего Deployment
-
-      - name: Verify Service Availability (Optional)
-        if: success() # Выполнить только если предыдущий шаг успешен
+            --set image.tag=latest
+            
+      - name: Check availability
         run: |
-          # Проверка доступности сервиса после Helm развертывания
-          # Получаем имя сервиса из values.yaml или Chart.yaml вашего Helm Chart
-          SERVICE_NAME="prime-checker-service" # Убедитесь, что это правильное имя
-          NAMESPACE="default"
-
-          EXTERNAL_IP=$(kubectl get service $SERVICE_NAME -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-          EXTERNAL_HOSTNAME=$(kubectl get service $SERVICE_NAME -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-
-          if [ -n "$EXTERNAL_IP" ]; then
-            echo "Service $SERVICE_NAME is accessible at IP: $EXTERNAL_IP"
-          elif [ -n "$EXTERNAL_HOSTNAME" ]; then
-            echo "Service $SERVICE_NAME is accessible at Hostname: $EXTERNAL_HOSTNAME"
-          else
-            echo "Service $SERVICE_NAME is not of type LoadBalancer or IP/Hostname not yet assigned. Checking internal accessibility..."
-          fi
+          echo "Ждем готовности приложения..."
+          kubectl rollout status deployment/prime-checker-release
+          echo "Проверяем статус Prometheus..."
+          kubectl get pods -l app=prometheus-server
