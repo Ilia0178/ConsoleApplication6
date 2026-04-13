@@ -1,6 +1,6 @@
 name: CI/CD Pipeline
 
-on: [push]
+on: [push] # Запускать при любом пуше в любую ветку
 
 jobs:
   # ===================================================================
@@ -12,29 +12,34 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         
-      - name: Install dependencies
+      - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake git libcurl4-openssl-dev zlib1g-dev
-      
-      - name: Build and Install Prometheus-cpp (Latest)
+          sudo apt-get install -y build-essential cmake git pkg-config libcurl4-openssl-dev zlib1g-dev
+          sudo rm -rf /var/lib/apt/lists/*
+
+      - name: Clone prometheus-cpp source
+        run: git clone --recursive https://github.com/jupp0r/prometheus-cpp.git /tmp/prometheus-cpp
+
+      - name: Build prometheus-cpp (statically)
         run: |
-          git clone --recursive https://github.com/jupp0r/prometheus-cpp.git /tmp/prometheus-cpp
           cd /tmp/prometheus-cpp
           mkdir build && cd build
-          cmake .. -DBUILD_SHARED_LIBS=ON -DENABLE_PUSH=OFF
-          make -j4
-          sudo make install
-          sudo ldconfig
-      
-      - name: Compile Code
-        run: make build 
+          cmake .. -DBUILD_SHARED_LIBS=OFF -DENABLE_PUSH=OFF -DBUILD_TESTING=OFF -DENABLE_COMPRESSION=OFF
+          make -j$(nproc)
 
-      - name: Save artifact
+      - name: Compile Application (using static prometheus-cpp)
+        run: |
+          make build \
+            CXXFLAGS="-I/tmp/prometheus-cpp/include" \
+            LDFLAGS="-L/tmp/prometheus-cpp/build/lib -lprometheus-cpp -lpthread -Wl,-Bstatic" 
+
+      - name: Save compiled binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: prime_checker_binary 
-          path: prime_checker
+          path: ./prime_checker
+
   # ===================================================================
   # 2 TEST
   # ===================================================================
@@ -45,21 +50,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         
-      - name: Download binary for testing
+      - name: Download compiled binary
         uses: actions/download-artifact@v4
         with:
           name: prime_checker_binary 
           path: ./ 
-          
-      - name: Make sure binary is executable
-        run: chmod +x prime_checker 
 
-      - name: Install Prometheus dependencies
+      - name: Make binary executable
+        run: chmod +x ./prime_checker
+
+      - name: Run Application Tests
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libcurl4-openssl-dev zlib1g-dev
-          # Если вы устанавливали prometheus-cpp через git clone/make install в build_job,
-          # вам нужно повторить установку здесь или (лучше!) собирать проект с флагом -static.
+          echo "11" | ./prime_checker 
+          echo "quit"
 
   # ===================================================================
   # 3 PACKAGE
@@ -71,13 +74,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install packaging tools and Prometheus dependencies
+      - name: Install packaging tools
         run: |
           sudo apt-get update
-          # dpkg-dev для самой упаковки
-          # libcurl4-openssl-dev и zlib1g-dev, если они нужны для создания .deb или если бинарник динамически их требует
-          sudo apt-get install -y dpkg-dev libcurl4-openssl-dev zlib1g-dev
-          sudo rm -rf /var/lib/apt/lists/* # Очистка apt-кеша
+          sudo apt-get install -y dpkg-dev
+          sudo rm -rf /var/lib/apt/lists/*
 
       - name: Download compiled binary for packaging
         uses: actions/download-artifact@v4
@@ -85,23 +86,26 @@ jobs:
           name: prime_checker_binary 
           path: ./ 
 
-      - name: Run Package (make package)
+      - name: Create DEB package
         run: |
-          # make package должен использовать новый CXXFLAGS и LDFLAGS из Makefile
-          make package
+          make package BINARY_PATH=./prime_checker
 
       - name: Upload DEB package artifact
         uses: actions/upload-artifact@v4
         with:
           name: prime-checker-deb
-          path: ./*.deb 
+          path: ./*.deb
 
   # ===================================================================
-  # 4 DOCKER BUILD
+  # 4 DOCKER BUILD AND PUSH
   # ===================================================================
   docker_build_and_push:
     needs: package_job 
     runs-on: ubuntu-latest
+    # Поскольку 'on: [push]' активирует job при любом пуше,
+    # здесь нет необходимости добавлять 'if' для ограничения по ветке.
+    # Эта job будет запускаться вместе с остальными.
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -119,12 +123,81 @@ jobs:
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN_FOR_LOGIN }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract package info from DEB
+        id: deb_info
+        run: |
+          DEB_FILE=$(find . -name "*.deb" -print -quit)
+          APP_NAME=$(basename "$DEB_FILE" | sed -n 's/^\(.*\)_.*_.*\.deb/\1/p')
+          APP_VERSION=$(basename "$DEB_FILE" | sed -n 's/^\(.*\)_\(.*\)_.*\.deb/\2/p')
+          echo "::set-output name=app_name::$APP_NAME"
+          echo "::set-output name=app_version::$APP_VERSION"
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v5
         with:
-          context: .
+          context: . 
           file: ./Dockerfile 
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ steps.deb_info.outputs.app_name }}:${{ steps.deb_info.outputs.app_version }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ steps.deb_info.outputs.app_name }}:latest
+
+  # ===================================================================
+  # 5 DEPLOY TO KUBERNETES
+  # ===================================================================
+  deploy_job:
+    needs: docker_build_and_push # Зависит от успешного сборки и пуша Docker-образа
+    runs-on: ubuntu-latest
+    # Поскольку 'on: [push]' активирует job при любом пуше,
+    # и мы не хотим ограничивать deploy, убираем блок 'if'.
+    # Эта job будет запускаться всегда, если предыдущие jobs прошли успешно.
+
+    steps:
+      - name: Checkout code (for Helm chart)
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+
+      - name: Configure Kubernetes credentials
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG_CONTENT }}" > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+          echo "KUBECONFIG=$HOME/.kube/config" >> $GITHUB_ENV 
+          kubectl config use-context <your-k8s-context-name> # ЗАМЕНИТЕ НА ИМЯ ВАШЕГО КОНТЕКСТА
+
+      - name: Install Prometheus and Grafana (with Grafana disabled)
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo update
+          helm install prometheus prometheus-community/kube-prometheus-stack \
+            --namespace monitoring \
+            --create-namespace \
+            --set grafana.enabled=false 
+
+      - name: Prepare Helm chart for deployment
+        run: |
+          helm dependency update
+          
+          helm upgrade --install my-prime-checker . \
+            --namespace monitoring \
+            --set image.repository="${{ secrets.DOCKERHUB_USERNAME }}/${{ steps.deb_info.outputs.app_name }}" \
+            --set image.tag="${{ steps.deb_info.outputs.app_version }}" \
+            
+            --set service.port=9090 \
+            --set replicaCount=1 \ 
+
+            --set serviceMonitor.enabled=true \
+            --set serviceMonitor.path=/metrics \
+            --set serviceMonitor.port=metrics \ 
+            --set serviceMonitor.interval=15s 
+            
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n monitoring -l app.kubernetes.io/instance=my-prime-checker
+          sleep 10 
+          kubectl get pods -n monitoring -l app.kubernetes.io/instance=my-prime-checker
+          kubectl get servicemonitor -n monitoring my-prime-checker-prime-checker -o yaml
