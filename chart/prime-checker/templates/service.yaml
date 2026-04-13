@@ -2,12 +2,14 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ include "prime-checker.fullname" . }}
+  labels:
+    {{- include "prime-checker.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.service.type }}
   ports:
-    - port: {{ .Values.service.port }}
-      targetPort: metrics
+    - port: {{ .Values.service.port }}       # Порт, который будет виден в кластере (и снаружи, если NodePort/LoadBalancer)
+      targetPort: metrics                   # Имя порта из контейнера (должно совпадать с name в containerPort Deployment)
       protocol: TCP
-      name: metrics
+      name: metrics                         # Имя порта, которое будет использоваться в ServiceMonitor
   selector:
-    app: prime-checker
+    app: {{ include "prime-checker.selectorLabel" . }} # Селектор, который связывает Service с подами Deployment

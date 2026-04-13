@@ -6,7 +6,7 @@ image:
 
 service:
   type: ClusterIP
-  port: 9090 # Порт, на который мы будем стучаться
+  port: 9090 
 
 resources:
   limits:

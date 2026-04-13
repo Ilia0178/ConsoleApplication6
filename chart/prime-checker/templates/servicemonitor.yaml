@@ -3,12 +3,29 @@ kind: ServiceMonitor
 metadata:
   name: {{ include "prime-checker.fullname" . }}
   labels:
-    release: prometheus # ВАЖНО: это имя релиза вашего prometheus-stack
+    # Важно: Эта метка должна совпадать с меткой, которую Prometheus Operator ожидает для сбора метрик.
+    # Обычно это 'release: prometheus' если вы ставите Prometheus через kube-prometheus-stack Helm chart.
+    release: prometheus
+    # Дополнительно можно добавить метку вашего чарта
+    {{- include "prime-checker.labels" . | nindent 4 }}
 spec:
   selector:
     matchLabels:
-      app: prime-checker
+      # Prometheus найдет Service с этой меткой
+      app: {{ include "prime-checker.selectorLabel" . }}
+  namespaceSelector:
+    # Указывает Prometheus, в каких namespaces искать Service.
+    # Если ваш prime-checker и prometheus находятся в одном namespace (например, monitoring),
+    # то можно указать matchLabels: { release: prometheus } или оставить пустым (для текущего namespace).
+    # Если prime-checker в другом namespace (например, default), укажите метки того namespace.
+    # Пример для поиска в namespace с меткой 'release: prometheus' (обычно namespace 'monitoring'):
+    matchLabels:
+      release: prometheus
+    # Или, если вы хотите, чтобы он искал в namespace, где установлен сам ServiceMonitor (требует настройки в values.yaml):
+    # matchNames:
+    #   - {{ .Release.Namespace }}
   endpoints:
-  - port: metrics
-    path: /metrics
-    interval: 15s
+  - port: metrics      # Имя порта из Service, которое нужно скрейпить
+    path: /metrics    # Путь для сбора метрик
+    interval: {{ .Values.serviceMonitor.interval }} # Как часто собирать метрики
+    # scrapeTimeout: 10s # Опционально: время ожидания ответа от endpoint'а

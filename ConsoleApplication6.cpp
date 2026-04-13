@@ -76,12 +76,11 @@ int main() {
     const int PROMETHEUS_PORT = 9090; 
     auto registry = std::make_shared<Registry>();
 
-    // --- Исправленный способ получения Counter из Family ---
     auto& checked_numbers_family = prometheus::BuildCounter()
         .Name("prime_checks_total")
         .Help("Total number of prime checks performed")
         .Register(*registry);
-    auto& checked_numbers_total = checked_numbers_family.Add({}); // Add({}) создает Counter без меток
+    auto& checked_numbers_total = checked_numbers_family.Add({}); 
 
     auto& prime_numbers_found_family = prometheus::BuildCounter()
         .Name("prime_numbers_found_total")
@@ -100,7 +99,6 @@ int main() {
         .Help("Total count of inputs outside the valid range")
         .Register(*registry);
     auto& out_of_range_total = out_of_range_family.Add({});
-    // --- Теперь checked_numbers_total и другие имеют тип Counter& ---
 
     bool interactive = isatty(fileno(stdin));
     std::thread exporter_thread(run_prometheus_exporter, PROMETHEUS_PORT, registry);
@@ -116,12 +114,12 @@ int main() {
                 long long n = std::stoll(input_line);
                 process_input(n, checked_numbers_total, prime_numbers_found_total, out_of_range_total);
             } catch (...) {
-                invalid_input_total.Increment(); // Инкрементируем invalid_input_total напрямую
+                invalid_input_total.Increment(); 
                 std::cerr << "Invalid input." << std::endl;
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
-    } else { // Неинтерактивный режим
+    } else { 
         std::string input_line;
         while (std::getline(std::cin, input_line)) {
             if (input_line.empty()) continue;
@@ -129,7 +127,7 @@ int main() {
                 long long n = std::stoll(input_line);
                 process_input(n, checked_numbers_total, prime_numbers_found_total, out_of_range_total);
             } catch (...) {
-                invalid_input_total.Increment(); // Инкрементируем invalid_input_total напрямую
+                invalid_input_total.Increment(); 
             }
         }
     }
