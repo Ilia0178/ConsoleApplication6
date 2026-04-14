@@ -3,23 +3,21 @@ name: CI/CD Pipeline
 on: [push]
 
 jobs:
-
   # ===================================================================
   # 1 BUILD
   # ===================================================================
   build_job:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
+        
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential cmake git libcurl4-openssl-dev zlib1g-dev
-
-      - name: Build and Install Prometheus-cpp
+      
+      - name: Build and Install Prometheus-cpp (Latest)
         run: |
           git clone --recursive https://github.com/jupp0r/prometheus-cpp.git /tmp/prometheus-cpp
           cd /tmp/prometheus-cpp
@@ -28,108 +26,111 @@ jobs:
           make -j4
           sudo make install
           sudo ldconfig
-
+      
       - name: Compile Code
-        run: make build
+        run: make build 
 
-      - name: Save binary artifact
+      - name: Save artifact
         uses: actions/upload-artifact@v4
         with:
-          name: prime_checker_binary
+          name: prime_checker_binary 
           path: prime_checker
-
-
   # ===================================================================
   # 2 TEST
   # ===================================================================
   test_job:
-    needs: build_job
+    needs: build_job 
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Download binary
+        
+      - name: Download binary for testing
         uses: actions/download-artifact@v4
         with:
-          name: prime_checker_binary
-          path: ./
+          name: prime_checker_binary 
+          path: ./ 
+          
+      - name: Make sure binary is executable
+        run: chmod +x prime_checker 
 
-      - name: Make executable
-        run: chmod +x prime_checker
-
+      - name: Install Prometheus dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev zlib1g-dev
+          # Если вы устанавливали prometheus-cpp через git clone/make install в build_job,
+          # вам нужно повторить установку здесь или (лучше!) собирать проект с флагом -static.
 
   # ===================================================================
   # 3 PACKAGE
   # ===================================================================
   package_job:
-    needs: test_job
+    needs: test_job 
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install packaging tools
+      - name: Install packaging tools and Prometheus dependencies
         run: |
           sudo apt-get update
+          # dpkg-dev для самой упаковки
+          # libcurl4-openssl-dev и zlib1g-dev, если они нужны для создания .deb или если бинарник динамически их требует
           sudo apt-get install -y dpkg-dev libcurl4-openssl-dev zlib1g-dev
+          sudo rm -rf /var/lib/apt/lists/* # Очистка apt-кеша
 
-      - name: Download binary
+      - name: Download compiled binary for packaging
         uses: actions/download-artifact@v4
         with:
-          name: prime_checker_binary
-          path: ./
+          name: prime_checker_binary 
+          path: ./ 
 
-      - name: Build package
-        run: make package
+      - name: Run Package (make package)
+        run: |
+          # make package должен использовать новый CXXFLAGS и LDFLAGS из Makefile
+          make package
 
-      - name: Upload DEB artifact
+      - name: Upload DEB package artifact
         uses: actions/upload-artifact@v4
         with:
           name: prime-checker-deb
-          path: ./*.deb
-
-      - name: Upload Helm chart
-        uses: actions/upload-artifact@v4
-        with:
-          name: helm-chart
-          path: ./prime-checker
-
+          path: ./*.deb 
 
   # ===================================================================
   # 4 DOCKER BUILD
   # ===================================================================
   docker_build_and_push:
-    needs: package_job
+    needs: package_job 
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download DEB
+      - name: Download DEB package for Docker build
         uses: actions/download-artifact@v4
         with:
-          name: prime-checker-deb
-          path: ./
+          name: prime-checker-deb 
+          path: ./ 
 
-      - name: Docker login
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Docker Hub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN_FOR_LOGIN }}
 
-      - name: Build and push image
+      - name: Build and push Docker image
         uses: docker/build-push-action@v4
         with:
           context: .
-          file: ./Dockerfile
+          file: ./Dockerfile 
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest
-
-
+  # ===================================================================
+  # 5 DEPLOY TO KUBERNETES
+  # ===================================================================
   deploy_to_k8s:
     needs: docker_build_and_push
     runs-on: ubuntu-latest
