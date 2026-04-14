@@ -3,20 +3,22 @@ name: CI/CD Pipeline
 on: [push]
 
 jobs:
+
   # ===================================================================
   # 1 BUILD
   # ===================================================================
   build_job:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential cmake git libcurl4-openssl-dev zlib1g-dev
-      
+
       - name: Build and Install Prometheus-cpp (Latest)
         run: |
           git clone --recursive https://github.com/jupp0r/prometheus-cpp.git /tmp/prometheus-cpp
@@ -26,40 +28,37 @@ jobs:
           make -j4
           sudo make install
           sudo ldconfig
-      
+
       - name: Compile Code
-        run: make build 
+        run: make build
 
       - name: Save artifact
         uses: actions/upload-artifact@v4
         with:
-          name: prime_checker_binary 
+          name: prime_checker_binary
           path: prime_checker
+
+
   # ===================================================================
   # 2 TEST
   # ===================================================================
   test_job:
-    needs: build_job 
+    needs: build_job
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
       - name: Download binary for testing
         uses: actions/download-artifact@v4
         with:
-          name: prime_checker_binary 
-          path: ./ 
-          
-      - name: Make sure binary is executable
-        run: chmod +x prime_checker 
+          name: prime_checker_binary
+          path: ./
 
-      - name: Install Prometheus dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libcurl4-openssl-dev zlib1g-dev
-          # Если вы устанавливали prometheus-cpp через git clone/make install в build_job,
-          # вам нужно повторить установку здесь или (лучше!) собирать проект с флагом -static.
+      - name: Make sure binary is executable
+        run: chmod +x prime_checker
+
 
   # ===================================================================
   # 3 PACKAGE
@@ -72,59 +71,43 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # =========================
-      # Install packaging tools
-      # =========================
       - name: Install packaging tools
         run: |
           sudo apt-get update
           sudo apt-get install -y dpkg-dev libcurl4-openssl-dev zlib1g-dev
 
-      # =========================
-      # Download binary
-      # =========================
       - name: Download binary
         uses: actions/download-artifact@v4
         with:
           name: prime_checker_binary
           path: ./
 
-      # =========================
-      # Build DEB package
-      # =========================
       - name: Build package
         run: make package
 
-      # =========================
-      # Upload DEB artifact
-      # =========================
       - name: Upload DEB artifact
         uses: actions/upload-artifact@v4
         with:
           name: prime-checker-deb
           path: ./*.deb
 
-      # =========================
-      # DEBUG (очень важно)
-      # =========================
       - name: Debug Helm chart location
         run: ls -R
 
-      # =========================
-      # Upload Helm chart (FIX HERE)
-      # =========================
       - name: Upload Helm chart
         uses: actions/upload-artifact@v4
         with:
           name: helm-chart
           path: ./prime-checker
 
+
   # ===================================================================
   # 4 DOCKER BUILD
   # ===================================================================
   docker_build_and_push:
-    needs: package_job 
+    needs: package_job
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -132,8 +115,8 @@ jobs:
       - name: Download DEB package for Docker build
         uses: actions/download-artifact@v4
         with:
-          name: prime-checker-deb 
-          path: ./ 
+          name: prime-checker-deb
+          path: ./
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
@@ -148,9 +131,11 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: .
-          file: ./Dockerfile 
+          file: ./Dockerfile
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest
+
+
   # ===================================================================
   # 5 DEPLOY TO KUBERNETES
   # ===================================================================
@@ -163,12 +148,12 @@ jobs:
         uses: actions/checkout@v4
 
       # =========================
-      # Install tools
+      # Install tools (FIXED INDENT)
       # =========================
       - name: Install kubectl + kind + helm
         run: |
           curl -LO https://dl.k8s.io/release/v1.29.0/bin/linux/amd64/kubectl
-            chmod +x kubectl
+          chmod +x kubectl
           sudo mv kubectl /usr/local/bin/
 
           curl -Lo kind https://kind.sigs.k8s.io/dl/latest/kind-linux-amd64
@@ -194,17 +179,21 @@ jobs:
           docker pull ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest
           kind load docker-image ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest --name ci-cluster
 
+      # =========================
+      # Download Helm chart (FIXED)
+      # =========================
       - name: Download Helm chart
         uses: actions/download-artifact@v4
         with:
           name: helm-chart
-          path: ./
+          path: ./helm-chart
 
       # =========================
-      # Deploy app
+      # Deploy application
       # =========================
       - name: Deploy application
         run: |
-          helm install prime-checker ./prime-checker \
+          ls -R ./helm-chart
+          helm install prime-checker ./helm-chart/prime-checker \
             --set image.repository=${{ secrets.DOCKERHUB_USERNAME }}/prime-checker \
             --set image.tag=latest
