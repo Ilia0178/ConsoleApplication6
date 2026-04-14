@@ -2,6 +2,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: prime-checker
+  labels:
+    app: prime-checker
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
@@ -16,5 +18,36 @@ spec:
         - name: prime-checker
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+
           ports:
-            - containerPort: 9090
+            - name: metrics
+              containerPort: 9090
+
+          env:
+            - name: PROMETHEUS_PORT
+              value: "9090"
+
+          # =========================
+          # HEALTH CHECKS
+          # =========================
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: 9090
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: 9090
+            initialDelaySeconds: 5
+            periodSeconds: 5
+
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
