@@ -9,13 +9,13 @@ jobs:
 # =========================================================
   build_job:
     runs-on: ubuntu-latest
-  
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-    
+
       # ================================
-      # system deps
+      # System dependencies
       # ================================
       - name: Install dependencies
         run: |
@@ -24,17 +24,19 @@ jobs:
             build-essential \
             cmake \
             git \
+            wget \
             libcurl4-openssl-dev \
             zlib1g-dev
-    
+
       # ================================
-      # httplib.h (ВАЖНО)
+      # httplib.h
       # ================================
       - name: Install httplib header
         run: |
           mkdir -p third_party
-          wget -O third_party/httplib.h https://raw.githubusercontent.com/yhirose/cpp-httplib/master/httplib.h
-    
+          wget -O third_party/httplib.h \
+          https://raw.githubusercontent.com/yhirose/cpp-httplib/master/httplib.h
+
       # ================================
       # prometheus-cpp
       # ================================
@@ -47,13 +49,14 @@ jobs:
           make -j$(nproc)
           sudo make install
           sudo ldconfig
-    
+
       # ================================
-      # build app
+      # build app (FIX: include third_party)
       # ================================
       - name: Build app
-        run: make build
-    
+        run: |
+          make build CXXFLAGS="-Ithird_party -I/usr/local/include"
+
       # ================================
       # upload binary
       # ================================

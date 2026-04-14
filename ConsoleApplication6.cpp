@@ -1,10 +1,18 @@
-﻿#include "httplib.h"
+﻿#include <iostream>
+#include <string>
+#include <atomic>
+#include <thread>
+#include <csignal>
+
+#include "httplib.h"
+
 #include <prometheus/exposer.h>
 #include <prometheus/registry.h>
 #include <prometheus/counter.h>
 
-using namespace httplib;
 using namespace prometheus;
+
+std::atomic<bool> running{true};
 
 bool isPrime(long long n) {
     if (n <= 1) return false;
@@ -19,15 +27,15 @@ bool isPrime(long long n) {
 int main() {
     auto registry = std::make_shared<Registry>();
 
-    auto& counter = BuildCounter()
+    auto& checks = BuildCounter()
         .Name("prime_checks_total")
-        .Help("checks")
+        .Help("Total checks")
         .Register(*registry)
         .Add({});
 
     auto& found = BuildCounter()
         .Name("prime_found_total")
-        .Help("found")
+        .Help("Total primes found")
         .Register(*registry)
         .Add({});
 
@@ -36,18 +44,24 @@ int main() {
     exposer.RegisterCollectable(registry);
 
     // HTTP server
-    Server svr;
+    httplib::Server svr;
 
-    svr.Get("/check", [&](const Request& req, Response& res) {
-        auto num = std::stoll(req.get_param_value("num"));
+    svr.Get("/check", [&](const httplib::Request& req, httplib::Response& res) {
+        if (!req.has_param("num")) {
+            res.status = 400;
+            res.set_content("missing num", "text/plain");
+            return;
+        }
 
-        counter.Increment();
+        long long n = std::stoll(req.get_param_value("num"));
 
-        if (isPrime(num)) {
+        checks.Increment();
+
+        if (isPrime(n)) {
             found.Increment();
-            res.set_content(std::to_string(num) + " is prime", "text/plain");
+            res.set_content(std::to_string(n) + " is prime", "text/plain");
         } else {
-            res.set_content(std::to_string(num) + " is not prime", "text/plain");
+            res.set_content(std::to_string(n) + " is not prime", "text/plain");
         }
     });
 

@@ -4,12 +4,15 @@ metadata:
   name: {{ include "prime-checker.fullname" . }}
   labels:
     {{- include "prime-checker.labels" . | nindent 4 }}
+
 spec:
   type: {{ .Values.service.type }}
+
   selector:
-    app: {{ include "prime-checker.selectorLabel" . }}
+    app: prime-checker   # 🔥 важно совпадение с Deployment
+
   ports:
-    - port: {{ .Values.service.port }}
-      targetPort: 8080
+    - name: metrics
+      port: 9090
+      targetPort: 9090
       protocol: TCP
-      name: http

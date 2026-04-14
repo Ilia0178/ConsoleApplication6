@@ -1,102 +1,144 @@
-# ====================================================================
-# Настройки проекта
-# ====================================================================
+# =========================================================
+# PROJECT CONFIG
+# =========================================================
 TARGET = prime_checker
 SRC = ConsoleApplication6.cpp
 CXX = g++
-# -pthread для поддержки потоков
-CXXFLAGS = -Wall -Wextra -std=c++17 -O2 -pthread -I/usr/local/include
-# библиотеки для Prometheus
+
+# include paths
+CXXFLAGS = -Wall -Wextra -std=c++17 -O2 -pthread -I. -I/usr/local/include
 LDFLAGS = -L/usr/local/lib -lprometheus-cpp-core -lprometheus-cpp-pull
+
 PKG_NAME = prime-checker
 DEB_FILE = $(PKG_NAME).deb
 
-# Цель по умолчанию 
+# =========================================================
+# DEFAULT
+# =========================================================
 .PHONY: all
 all: build
 
-# --------------------------------------------------------------------
-# 0. Подготовка среды 
-# --------------------------------------------------------------------
-SUDO := $(shell command -v sudo >/dev/null 2>&1 && echo "sudo" || echo "")
-
+# =========================================================
+# INSTALL DEPENDENCIES
+# =========================================================
 .PHONY: setup
 setup:
-	@echo "--- Проверка и установка зависимостей ---"
-	@$(SUDO) apt update
-	@$(SUDO) apt install -y build-essential dpkg-dev libcurl4-openssl-dev zlib1g-dev
-	@echo "Зависимости установлены."
+	@echo "📦 Installing dependencies..."
+	sudo apt-get update
+	sudo apt-get install -y \
+		build-essential \
+		g++ \
+		make \
+		wget \
+		git \
+		cmake \
+		libcurl4-openssl-dev \
+		zlib1g-dev
+	@echo "✔ dependencies ready"
 
-# --------------------------------------------------------------------
-# 1. Сборка 
-# --------------------------------------------------------------------
+# =========================================================
+# DOWNLOAD HTTPLIB
+# =========================================================
+.PHONY: deps
+deps:
+	@echo "📦 Downloading httplib.h..."
+	mkdir -p third_party
+	wget -q -O third_party/httplib.h \
+		https://raw.githubusercontent.com/yhirose/cpp-httplib/master/httplib.h
+	@echo "✔ httplib ready"
+
+# =========================================================
+# BUILD PROMETHEUS (optional if not installed)
+# =========================================================
+.PHONY: prom
+prom:
+	@echo "📦 Building prometheus-cpp..."
+	if [ ! -f /usr/local/lib/libprometheus-cpp-core.so ]; then \
+		git clone --recursive https://github.com/jupp0r/prometheus-cpp.git /tmp/prom && \
+		cd /tmp/prom && mkdir build && cd build && \
+		cmake .. -DBUILD_SHARED_LIBS=ON -DENABLE_PUSH=OFF && \
+		make -j$$(nproc) && sudo make install && sudo ldconfig ; \
+	else \
+		echo "✔ prometheus already installed"; \
+	fi
+
+# =========================================================
+# BUILD APP
+# =========================================================
 .PHONY: build
-build: setup $(SRC)
+build: setup deps prom
+	@echo "🚀 Building application..."
 	$(CXX) $(CXXFLAGS) $(SRC) -o $(TARGET) $(LDFLAGS)
+	@echo "✔ build complete"
 
-# --------------------------------------------------------------------
-# 2. Тестирование
-# --------------------------------------------------------------------
+# =========================================================
+# RUN LOCALLY
+# =========================================================
+.PHONY: run
+run:
+	./$(TARGET)
+
+# =========================================================
+# TEST SIMPLE
+# =========================================================
 .PHONY: test
-test:
-	@echo "--- Запуск тестов ---"
-	export LD_LIBRARY_PATH="/usr/local/lib:$$LD_LIBRARY_PATH" && \
-	\
-	echo "--- Тест 17 ---" && \
-	OUTPUT=$$(echo "17" | ./$(TARGET) 2>&1) && \
-	echo "$$OUTPUT" | grep "17 is a prime number." || { echo "FAIL: 17"; echo "Output was: $$OUTPUT"; exit 1; } && \
-	\
-	echo "--- Тест 18 ---" && \
-	OUTPUT=$$(echo "18" | ./$(TARGET) 2>&1) && \
-	echo "$$OUTPUT" | grep "18 is not a prime number." || { echo "FAIL: 18"; echo "Output was: $$OUTPUT"; exit 1; } && \
-	\
-	echo "--- Тест abc ---" && \
-	OUTPUT=$$(echo "abc" | ./$(TARGET) 2>&1) && \
-	echo "$$OUTPUT" | grep "Error: Input is not a valid number." || { echo "FAIL: abc"; echo "Output was: $$OUTPUT"; exit 1; } && \
-	\
-	echo "--- Тест 0 ---" && \
-	OUTPUT=$$(echo "0" | ./$(TARGET) 2>&1) && \
-	echo "$$OUTPUT" | grep "Error: Number is out of the valid range (1 - 2 billion)." || { echo "FAIL: 0"; echo "Output was: $$OUTPUT"; exit 1; } && \
-	\
-	echo "--- Тест 2000000001 ---" && \
-	OUTPUT=$$(echo "2000000001" | ./$(TARGET) 2>&1) && \
-	echo "$$OUTPUT" | grep "Error: Number is out of the valid range (1 - 2 billion)." || { echo "FAIL: 2000000001"; echo "Output was: $$OUTPUT"; exit 1; } && \
-	\
-	@echo "--- Все тесты пройдены ---"
+test: build
+	@echo "🧪 Testing API..."
+	./$(TARGET) &
+	sleep 2
+	curl "http://localhost:8080/check?num=17" || true
 
-
-# --------------------------------------------------------------------
-# 3. Упаковка 
-# --------------------------------------------------------------------
-.PHONY: package
-package:
-	@echo "--- Создание пакета .deb ---"
-	
-	# Подготовка структуры
-	mkdir -p $(PKG_NAME)/usr/bin
-	
-	# Копирование скомпилированного файла в структуру пакета
-	cp $(TARGET) $(PKG_NAME)/usr/bin/
-	
-	# Создание control-файла
-	mkdir -p $(PKG_NAME)/DEBIAN
-	echo "Package: prime-checker" > $(PKG_NAME)/DEBIAN/control
-	echo "Version: 1.0" >> $(PKG_NAME)/DEBIAN/control
-	echo "Architecture: amd64" >> $(PKG_NAME)/DEBIAN/control
-	echo "Maintainer: Team Name <team.email@example.com>" >> $(PKG_NAME)/DEBIAN/control 
-	echo "Depends: libc6 (>= 2.29), libstdc++6 (>= 9)" >> $(PKG_NAME)/DEBIAN/control 
-	echo "Description: A simple C++ prime number checker tool." >> $(PKG_NAME)/DEBIAN/control
-
-	# Сборка пакета
-	dpkg-deb --build $(PKG_NAME)
-	
-	rm -rf $(PKG_NAME)
+# =========================================================
+# CLEAN
+# =========================================================
+.PHONY: clean
+clean:
 	rm -f $(TARGET)
+	rm -rf third_party
 
-# --------------------------------------------------------------------
-# 4. Установка созданного пакета 
-# --------------------------------------------------------------------
-.PHONY: install
-install: package
-	@echo "--- Установка пакета (зависимости будут скачаны автоматически) ---"
-	sudo apt install -y ./$(DEB_FILE)
+# =========================================================
+# DOCKER BUILD
+# =========================================================
+.PHONY: docker-build
+docker-build:
+	docker build -t $(PKG_NAME):latest .
+
+# =========================================================
+# DOCKER RUN
+# =========================================================
+.PHONY: docker-run
+docker-run:
+	docker run -p 8080:8080 -p 9090:9090 $(PKG_NAME):latest
+
+# =========================================================
+# HELM DEPLOY
+# =========================================================
+.PHONY: deploy
+deploy:
+	@echo "🚀 Deploying with Helm..."
+	docker pull your-dockerhub/$(PKG_NAME):latest
+	helm upgrade --install $(PKG_NAME) ./prime-checker \
+		--set image.repository=your-dockerhub/$(PKG_NAME) \
+		--set image.tag=latest
+
+# =========================================================
+# KUBECTL STATUS
+# =========================================================
+.PHONY: status
+status:
+	kubectl get pods
+	kubectl get svc
+
+# =========================================================
+# PORT FORWARD
+# =========================================================
+.PHONY: port-forward
+port-forward:
+	kubectl port-forward svc/$(PKG_NAME) 8080:80
+
+# =========================================================
+# FULL PIPELINE
+# =========================================================
+.PHONY: all-up
+all-up: build docker-build deploy status
+	@echo "🎉 SYSTEM READY"

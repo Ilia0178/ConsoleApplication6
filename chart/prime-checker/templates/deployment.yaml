@@ -2,21 +2,47 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ .Release.Name }}
+  labels:
+    app: prime-checker
+
 spec:
   replicas: 1
+
   selector:
     matchLabels:
       app: prime-checker
+
   template:
     metadata:
       labels:
         app: prime-checker
+
       annotations:
         prometheus.io/scrape: "true"
-        prometheus.io/port: "80"
+        prometheus.io/port: "9090"
+
     spec:
       containers:
       - name: prime-checker
         image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+
         ports:
-        - containerPort: 80
+        - name: metrics
+          containerPort: 9090
+
+        # =========================
+        # HEALTHCHECKS (важно)
+        # =========================
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: 9090
+          initialDelaySeconds: 3
+          periodSeconds: 5
+
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: 9090
+          initialDelaySeconds: 10
+          periodSeconds: 10

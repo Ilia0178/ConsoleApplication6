@@ -1,12 +1,11 @@
 image:
-  repository: ваш_логин/prime-checker
+  repository: your_dockerhub_username/prime-checker
   tag: latest
 
 service:
-  type: LoadBalancer
-  port: 80
+  type: ClusterIP
+  port: 9090
+  targetPort: 9090
 
-# Конфигурация для Prometheus
 prometheus:
-  prometheusServer:
-    enabled: true
+  scrape: true
