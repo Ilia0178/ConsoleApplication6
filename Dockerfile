@@ -1,6 +1,3 @@
-# =========================================================
-# BUILD STAGE
-# =========================================================
 FROM ubuntu:22.04 AS builder
 
 RUN apt-get update && apt-get install -y \
@@ -16,7 +13,12 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 COPY . .
 
-# build prometheus-cpp
+# httplib
+RUN mkdir -p /app/third_party && \
+    curl -L https://raw.githubusercontent.com/yhirose/cpp-httplib/master/httplib.h \
+    -o /app/third_party/httplib.h
+
+# prometheus-cpp
 RUN git clone --recursive https://github.com/jupp0r/prometheus-cpp.git /tmp/prom && \
     cd /tmp/prom && mkdir build && cd build && \
     cmake .. -DBUILD_SHARED_LIBS=ON -DENABLE_PUSH=OFF && \
@@ -24,13 +26,11 @@ RUN git clone --recursive https://github.com/jupp0r/prometheus-cpp.git /tmp/prom
 
 # build app
 RUN g++ -Wall -Wextra -std=c++17 -O2 -pthread \
+    -I/app/third_party \
     ConsoleApplication6.cpp -o prime_checker \
     -lprometheus-cpp-core -lprometheus-cpp-pull
 
 
-# =========================================================
-# RUNTIME STAGE
-# =========================================================
 FROM ubuntu:22.04
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -46,8 +46,6 @@ COPY --from=builder /usr/local/lib/libprometheus-cpp* /usr/local/lib/
 
 RUN echo "/usr/local/lib" > /etc/ld.so.conf.d/prometheus.conf && ldconfig
 
-# 🔥 ВАЖНО: правильный порт
-EXPOSE 9090
+EXPOSE 8080
 
-# стабильный запуск
-ENTRYPOINT ["/usr/local/bin/prime_checker"]
+CMD ["/usr/local/bin/prime_checker"]
