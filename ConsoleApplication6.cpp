@@ -106,7 +106,7 @@ int main() {
     // =========================
     svr.listen("0.0.0.0", 8080);
     while (true) {
-        std::this_thread::sleep_for(std::chrono::seconds(10));
+        std::this_thread::sleep_for(std::chrono::seconds(60));
     }
     return 0;
 }
