@@ -3,21 +3,23 @@ name: CI/CD Pipeline
 on: [push]
 
 jobs:
+
   # ===================================================================
   # 1 BUILD
   # ===================================================================
   build_job:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential cmake git libcurl4-openssl-dev zlib1g-dev
-      
-      - name: Build and Install Prometheus-cpp (Latest)
+
+      - name: Build and Install Prometheus-cpp
         run: |
           git clone --recursive https://github.com/jupp0r/prometheus-cpp.git /tmp/prometheus-cpp
           cd /tmp/prometheus-cpp
@@ -26,110 +28,110 @@ jobs:
           make -j4
           sudo make install
           sudo ldconfig
-      
-      - name: Compile Code
-        run: make build 
 
-      - name: Save artifact
+      - name: Compile Code
+        run: make build
+
+      - name: Save binary artifact
         uses: actions/upload-artifact@v4
         with:
-          name: prime_checker_binary 
+          name: prime_checker_binary
           path: prime_checker
+
+
   # ===================================================================
   # 2 TEST
   # ===================================================================
   test_job:
-    needs: build_job 
+    needs: build_job
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
-      - name: Download binary for testing
+
+      - name: Download binary
         uses: actions/download-artifact@v4
         with:
-          name: prime_checker_binary 
-          path: ./ 
-          
-      - name: Make sure binary is executable
-        run: chmod +x prime_checker 
+          name: prime_checker_binary
+          path: ./
 
-      - name: Install Prometheus dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libcurl4-openssl-dev zlib1g-dev
-          # Если вы устанавливали prometheus-cpp через git clone/make install в build_job,
-          # вам нужно повторить установку здесь или (лучше!) собирать проект с флагом -static.
+      - name: Make executable
+        run: chmod +x prime_checker
+
 
   # ===================================================================
   # 3 PACKAGE
   # ===================================================================
   package_job:
-    needs: test_job 
+    needs: test_job
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install packaging tools and Prometheus dependencies
+      - name: Install packaging tools
         run: |
           sudo apt-get update
-          # dpkg-dev для самой упаковки
-          # libcurl4-openssl-dev и zlib1g-dev, если они нужны для создания .deb или если бинарник динамически их требует
           sudo apt-get install -y dpkg-dev libcurl4-openssl-dev zlib1g-dev
-          sudo rm -rf /var/lib/apt/lists/* # Очистка apt-кеша
 
-      - name: Download compiled binary for packaging
+      - name: Download binary
         uses: actions/download-artifact@v4
         with:
-          name: prime_checker_binary 
-          path: ./ 
+          name: prime_checker_binary
+          path: ./
 
-      - name: Run Package (make package)
-        run: |
-          # make package должен использовать новый CXXFLAGS и LDFLAGS из Makefile
-          make package
+      - name: Build package
+        run: make package
 
-      - name: Upload DEB package artifact
+      - name: Upload DEB artifact
         uses: actions/upload-artifact@v4
         with:
           name: prime-checker-deb
-          path: ./*.deb 
+          path: ./*.deb
+
+      - name: Upload Helm chart
+        uses: actions/upload-artifact@v4
+        with:
+          name: helm-chart
+          path: ./prime-checker
+
 
   # ===================================================================
   # 4 DOCKER BUILD
   # ===================================================================
   docker_build_and_push:
-    needs: package_job 
+    needs: package_job
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download DEB package for Docker build
+      - name: Download DEB
         uses: actions/download-artifact@v4
         with:
-          name: prime-checker-deb 
-          path: ./ 
+          name: prime-checker-deb
+          path: ./
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Log in to Docker Hub
+      - name: Docker login
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN_FOR_LOGIN }}
 
-      - name: Build and push Docker image
+      - name: Build and push image
         uses: docker/build-push-action@v4
         with:
           context: .
-          file: ./Dockerfile 
+          file: ./Dockerfile
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest
+
+
   # ===================================================================
-  # 5 DEPLOY TO KUBERNETES
+  # 5 DEPLOY TO KUBERNETES (kind)
   # ===================================================================
   deploy_to_k8s:
     needs: docker_build_and_push
@@ -157,18 +159,14 @@ jobs:
       # =========================
       # Create cluster
       # =========================
-      - name: Create Kubernetes cluster (kind)
-        run: |
-          kind create cluster --name ci-cluster
+      - name: Create Kubernetes cluster
+        run: kind create cluster --name ci-cluster
 
-      # =========================
-      # Check cluster
-      # =========================
       - name: Verify cluster
         run: kubectl get nodes
 
       # =========================
-      # Load Docker image into cluster
+      # Load Docker image
       # =========================
       - name: Load image into kind
         run: |
@@ -176,11 +174,20 @@ jobs:
           kind load docker-image ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest --name ci-cluster
 
       # =========================
-      # Deploy app via Helm
+      # DOWNLOAD HELM CHART (FIX)
+      # =========================
+      - name: Download Helm chart
+        uses: actions/download-artifact@v4
+        with:
+          name: helm-chart
+          path: ./helm
+
+      # =========================
+      # Deploy app
       # =========================
       - name: Deploy application
         run: |
-          helm install prime-checker ./prime-checker \
+          helm install prime-checker ./helm \
             --set image.repository=${{ secrets.DOCKERHUB_USERNAME }}/prime-checker \
             --set image.tag=latest
 
@@ -194,7 +201,7 @@ jobs:
           helm install prometheus prometheus-community/prometheus
 
       # =========================
-      # Test metrics
+      # Check metrics
       # =========================
       - name: Check metrics endpoint
         run: |
@@ -203,7 +210,7 @@ jobs:
           curl http://localhost:9090/metrics | head
 
       # =========================
-      # Cleanup (optional but good)
+      # Cleanup
       # =========================
       - name: Delete cluster
         run: kind delete cluster --name ci-cluster
