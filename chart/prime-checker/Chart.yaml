@@ -1,7 +1,6 @@
 apiVersion: v2
 name: prime-checker
+description: A Helm chart for Prime Checker application with Prometheus metrics
+type: application
 version: 0.1.0
-dependencies:
-  - name: prometheus
-    version: 25.0.0
-    repository: https://prometheus-community.github.io/helm-charts
+appVersion: "1.0"

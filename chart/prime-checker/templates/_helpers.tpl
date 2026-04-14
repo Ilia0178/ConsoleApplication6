@@ -1,3 +1,11 @@
+{{- define "prime-checker.name" -}}
+prime-checker
+{{- end }}
+
 {{- define "prime-checker.fullname" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{ .Release.Name }}-prime-checker
+{{- end }}
+
+{{- define "prime-checker.labels" -}}
+app: {{ include "prime-checker.name" . }}
 {{- end }}

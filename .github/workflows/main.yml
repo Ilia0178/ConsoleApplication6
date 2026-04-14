@@ -128,4 +128,82 @@ jobs:
           file: ./Dockerfile 
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest
-  
+  # ===================================================================
+  # 5 DEPLOY TO KUBERNETES
+  # ===================================================================
+  deploy_to_k8s:
+    needs: docker_build_and_push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # =========================
+      # Install tools
+      # =========================
+      - name: Install kubectl + kind + helm
+        run: |
+          curl -LO https://dl.k8s.io/release/v1.29.0/bin/linux/amd64/kubectl
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+
+          curl -Lo kind https://kind.sigs.k8s.io/dl/latest/kind-linux-amd64
+          chmod +x kind
+          sudo mv kind /usr/local/bin/
+
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      # =========================
+      # Create cluster
+      # =========================
+      - name: Create Kubernetes cluster (kind)
+        run: |
+          kind create cluster --name ci-cluster
+
+      # =========================
+      # Check cluster
+      # =========================
+      - name: Verify cluster
+        run: kubectl get nodes
+
+      # =========================
+      # Load Docker image into cluster
+      # =========================
+      - name: Load image into kind
+        run: |
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest
+          kind load docker-image ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest --name ci-cluster
+
+      # =========================
+      # Deploy app via Helm
+      # =========================
+      - name: Deploy application
+        run: |
+          helm install prime-checker ./prime-checker \
+            --set image.repository=${{ secrets.DOCKERHUB_USERNAME }}/prime-checker \
+            --set image.tag=latest
+
+      # =========================
+      # Install Prometheus
+      # =========================
+      - name: Install Prometheus
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo update
+          helm install prometheus prometheus-community/prometheus
+
+      # =========================
+      # Test metrics
+      # =========================
+      - name: Check metrics endpoint
+        run: |
+          kubectl port-forward svc/prime-checker-prime-checker 9090:80 &
+          sleep 5
+          curl http://localhost:9090/metrics | head
+
+      # =========================
+      # Cleanup (optional but good)
+      # =========================
+      - name: Delete cluster
+        run: kind delete cluster --name ci-cluster

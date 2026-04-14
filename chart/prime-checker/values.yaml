@@ -1,12 +1,22 @@
+replicaCount: 1
+
 image:
-  repository: ваш_логин/prime-checker
+  repository: YOUR_DOCKERHUB_USERNAME/prime-checker
   tag: latest
+  pullPolicy: IfNotPresent
 
 service:
-  type: LoadBalancer
+  type: NodePort
   port: 80
+  targetPort: 9090
 
-# Конфигурация для Prometheus
-prometheus:
-  prometheusServer:
-    enabled: true
+resources: {}
+
+autoscaling:
+  enabled: false
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

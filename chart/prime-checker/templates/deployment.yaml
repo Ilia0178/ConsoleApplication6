@@ -1,9 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}
+  name: {{ include "prime-checker.fullname" . }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
       app: prime-checker
@@ -11,12 +11,35 @@ spec:
     metadata:
       labels:
         app: prime-checker
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "80"
     spec:
+      volumes:
+        - name: shared-data
+          emptyDir: {}
+
       containers:
-      - name: prime-checker
-        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
-        ports:
-        - containerPort: 80
+        - name: prime-checker
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.targetPort }}
+          volumeMounts:
+            - name: shared-data
+              mountPath: /data
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              mkfifo /data/input_pipe
+              cat /data/input_pipe | /usr/bin/prime_checker
+
+        - name: generator
+          image: busybox
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              while true; do
+                echo $((RANDOM % 100 + 1)) > /data/input_pipe
+                sleep 1
+              done
+          volumeMounts:
+            - name: shared-data
+              mountPath: /data
