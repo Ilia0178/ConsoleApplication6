@@ -1,61 +1,56 @@
-﻿#include <iostream>
-#include <atomic>
-#include <string>
-#include <thread>
+﻿#include "httplib.h"
 #include <prometheus/exposer.h>
 #include <prometheus/registry.h>
 #include <prometheus/counter.h>
-#include "httplib.h"
 
+using namespace httplib;
 using namespace prometheus;
-
-std::atomic<bool> running{true};
 
 bool isPrime(long long n) {
     if (n <= 1) return false;
     if (n <= 3) return true;
     if (n % 2 == 0 || n % 3 == 0) return false;
     for (long long i = 5; i * i <= n; i += 6)
-        if (n % i == 0 || n % (i + 2) == 0) return false;
+        if (n % i == 0 || n % (i + 2) == 0)
+            return false;
     return true;
 }
 
 int main() {
-
     auto registry = std::make_shared<Registry>();
 
-    auto& counter_family = BuildCounter()
+    auto& counter = BuildCounter()
         .Name("prime_checks_total")
-        .Help("Total checks")
-        .Register(*registry);
+        .Help("checks")
+        .Register(*registry)
+        .Add({});
 
-    auto& counter = counter_family.Add({});
+    auto& found = BuildCounter()
+        .Name("prime_found_total")
+        .Help("found")
+        .Register(*registry)
+        .Add({});
 
+    // Prometheus metrics
     Exposer exposer{"0.0.0.0:9090"};
     exposer.RegisterCollectable(registry);
 
-    httplib::Server svr;
+    // HTTP server
+    Server svr;
 
-    svr.Get("/check", [&](const httplib::Request& req, httplib::Response& res) {
-
-        if (!req.has_param("num")) {
-            res.set_content("Missing num", "text/plain");
-            return;
-        }
-
-        long long n = std::stoll(req.get_param_value("num"));
+    svr.Get("/check", [&](const Request& req, Response& res) {
+        auto num = std::stoll(req.get_param_value("num"));
 
         counter.Increment();
 
-        if (isPrime(n)) {
-            res.set_content(std::to_string(n) + " is prime", "text/plain");
+        if (isPrime(num)) {
+            found.Increment();
+            res.set_content(std::to_string(num) + " is prime", "text/plain");
         } else {
-            res.set_content(std::to_string(n) + " is not prime", "text/plain");
+            res.set_content(std::to_string(num) + " is not prime", "text/plain");
         }
     });
 
-    std::cout << "Server started on port 8080\n";
+    std::cout << "Server started on 8080\n";
     svr.listen("0.0.0.0", 8080);
-
-    return 0;
 }
