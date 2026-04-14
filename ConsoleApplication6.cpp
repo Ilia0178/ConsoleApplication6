@@ -73,66 +73,43 @@ int main() {
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
 
-    const int PROMETHEUS_PORT = 9090; 
+    const int PROMETHEUS_PORT = 9090;
     auto registry = std::make_shared<Registry>();
 
-    auto& checked_numbers_family = prometheus::BuildCounter()
+    auto& checked_numbers_total = prometheus::BuildCounter()
         .Name("prime_checks_total")
         .Help("Total number of prime checks performed")
-        .Register(*registry);
-    auto& checked_numbers_total = checked_numbers_family.Add({}); 
+        .Register(*registry)
+        .Add({});
 
-    auto& prime_numbers_found_family = prometheus::BuildCounter()
+    auto& prime_numbers_found_total = prometheus::BuildCounter()
         .Name("prime_numbers_found_total")
         .Help("Total number of prime numbers found")
-        .Register(*registry);
-    auto& prime_numbers_found_total = prime_numbers_found_family.Add({});
+        .Register(*registry)
+        .Add({});
 
-    auto& invalid_input_family = prometheus::BuildCounter()
+    auto& invalid_input_total = prometheus::BuildCounter()
         .Name("invalid_input_total")
         .Help("Total count of invalid inputs")
-        .Register(*registry);
-    auto& invalid_input_total = invalid_input_family.Add({});
+        .Register(*registry)
+        .Add({});
 
-    auto& out_of_range_family = prometheus::BuildCounter()
+    auto& out_of_range_total = prometheus::BuildCounter()
         .Name("out_of_range_input_total")
         .Help("Total count of inputs outside the valid range")
-        .Register(*registry);
-    auto& out_of_range_total = out_of_range_family.Add({});
+        .Register(*registry)
+        .Add({});
 
-    bool interactive = isatty(fileno(stdin));
-    std::thread exporter_thread(run_prometheus_exporter, PROMETHEUS_PORT, registry);
+    // ✅ exporter runs WITHOUT thread (simple & safe)
+    Exposer exposer{"0.0.0.0:" + std::to_string(PROMETHEUS_PORT)};
+    exposer.RegisterCollectable(registry);
 
-    if (interactive) {
-        std::cout << "Enter numbers (1-2B). Type 'quit' to exit." << std::endl;
-        std::string input_line;
-        while (!stop_application) {
-            std::cout << "> ";
-            if (!std::getline(std::cin, input_line) || input_line == "quit") break;
-            
-            try {
-                long long n = std::stoll(input_line);
-                process_input(n, checked_numbers_total, prime_numbers_found_total, out_of_range_total);
-            } catch (...) {
-                invalid_input_total.Increment(); 
-                std::cerr << "Invalid input." << std::endl;
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        }
-    } else { 
-        std::string input_line;
-        while (std::getline(std::cin, input_line)) {
-            if (input_line.empty()) continue;
-            try {
-                long long n = std::stoll(input_line);
-                process_input(n, checked_numbers_total, prime_numbers_found_total, out_of_range_total);
-            } catch (...) {
-                invalid_input_total.Increment(); 
-            }
-        }
+    std::cout << "Exporter started on port " << PROMETHEUS_PORT << std::endl;
+
+    // 🔥 IMPORTANT: keep container alive forever
+    while (!stop_application) {
+        std::this_thread::sleep_for(std::chrono::seconds(2));
     }
 
-    stop_application = true;
-    if (exporter_thread.joinable()) exporter_thread.join();
     return 0;
 }
