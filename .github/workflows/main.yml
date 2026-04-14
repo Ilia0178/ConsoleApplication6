@@ -141,34 +141,76 @@ jobs:
   deploy_to_k8s:
     needs: docker_build_and_push
     runs-on: ubuntu-latest
-
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
+    
+      # =========================
+      # Install tools
+      # =========================
       - name: Install kubectl + kind + helm
         run: |
           curl -LO https://dl.k8s.io/release/v1.29.0/bin/linux/amd64/kubectl
           chmod +x kubectl
           sudo mv kubectl /usr/local/bin/
-
+    
           curl -Lo kind https://kind.sigs.k8s.io/dl/latest/kind-linux-amd64
           chmod +x kind
           sudo mv kind /usr/local/bin/
-
+    
           curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-
-      - name: Create cluster
+    
+      # =========================
+      # Create cluster
+      # =========================
+      - name: Create Kubernetes cluster
         run: kind create cluster --name ci-cluster
-
-      - name: Download Helm chart
-        uses: actions/download-artifact@v4
-        with:
-          name: helm-chart
-          path: ./helm-chart
-
+    
+      # =========================
+      # Verify cluster
+      # =========================
+      - name: Verify cluster
+        run: kubectl get nodes
+    
+      # =========================
+      # Load Docker image into kind
+      # =========================
+      - name: Load image into kind
+        run: |
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest
+          kind load docker-image ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest --name ci-cluster
+    
+      # =========================
+      # Install Helm chart (ВАЖНО: путь правильный)
+      # =========================
       - name: Deploy application
         run: |
-          helm install prime-checker ./helm-chart \
+          helm install prime-checker ./chart/prime-checker \
             --set image.repository=${{ secrets.DOCKERHUB_USERNAME }}/prime-checker \
             --set image.tag=latest
+    
+      # =========================
+      # Wait for pods
+      # =========================
+      - name: Wait for pods
+        run: |
+          kubectl get pods
+          kubectl wait --for=condition=ready pod -l app=prime-checker --timeout=120s
+    
+      # =========================
+      # Check service
+      # =========================
+      - name: Check services
+        run: kubectl get svc
+    
+      # =========================
+      # TEST METRICS (CI)
+      # =========================
+      - name: Test metrics endpoint
+        run: |
+          POD=$(kubectl get pods -l app=prime-checker -o jsonpath="{.items[0].metadata.name}")
+          echo "Pod: $POD"
+    
+          echo "=== Metrics output ==="
+          kubectl exec $POD -- sh -c "wget -qO- http://localhost:9090/metrics | head"
