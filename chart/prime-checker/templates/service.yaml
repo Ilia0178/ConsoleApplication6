@@ -6,10 +6,10 @@ metadata:
     {{- include "prime-checker.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.service.type }}
-  ports:
-    - port: {{ .Values.service.port }}       # Порт, который будет виден в кластере (и снаружи, если NodePort/LoadBalancer)
-      targetPort: metrics                   # Имя порта из контейнера (должно совпадать с name в containerPort Deployment)
-      protocol: TCP
-      name: metrics                         # Имя порта, которое будет использоваться в ServiceMonitor
   selector:
-    app: {{ include "prime-checker.selectorLabel" . }} # Селектор, который связывает Service с подами Deployment
+    app: {{ include "prime-checker.selectorLabel" . }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: 8080
+      protocol: TCP
+      name: http

@@ -47,6 +47,6 @@ COPY --from=builder /usr/local/lib/libprometheus-cpp* /usr/local/lib/
 # фикс линковки
 RUN echo "/usr/local/lib" > /etc/ld.so.conf.d/prometheus.conf && ldconfig
 
-EXPOSE 9090
+EXPOSE 8080
 
 CMD ["/usr/local/bin/prime_checker"]
