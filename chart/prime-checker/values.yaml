@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: ""
+  repository: "ilia0178/prime-checker"
   tag: latest
   pullPolicy: IfNotPresent
 
