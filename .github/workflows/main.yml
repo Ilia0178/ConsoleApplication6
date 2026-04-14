@@ -146,9 +146,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # =========================
-      # Install tools (FIXED INDENT)
-      # =========================
       - name: Install kubectl + kind + helm
         run: |
           curl -LO https://dl.k8s.io/release/v1.29.0/bin/linux/amd64/kubectl
@@ -161,38 +158,17 @@ jobs:
 
           curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
-      # =========================
-      # Create cluster
-      # =========================
-      - name: Create Kubernetes cluster
+      - name: Create cluster
         run: kind create cluster --name ci-cluster
 
-      - name: Verify cluster
-        run: kubectl get nodes
-
-      # =========================
-      # Load Docker image
-      # =========================
-      - name: Load image into kind
-        run: |
-          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest
-          kind load docker-image ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest --name ci-cluster
-
-      # =========================
-      # Download Helm chart (FIXED)
-      # =========================
       - name: Download Helm chart
         uses: actions/download-artifact@v4
         with:
           name: helm-chart
           path: ./helm-chart
 
-      # =========================
-      # Deploy application
-      # =========================
       - name: Deploy application
         run: |
-          ls -R ./helm-chart
-          helm install prime-checker ./helm-chart/prime-checker \
+          helm install prime-checker ./helm-chart \
             --set image.repository=${{ secrets.DOCKERHUB_USERNAME }}/prime-checker \
             --set image.tag=latest
