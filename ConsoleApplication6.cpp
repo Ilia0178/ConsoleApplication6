@@ -90,25 +90,25 @@ int main() {
 
     auto& invalid_input_total = prometheus::BuildCounter()
         .Name("invalid_input_total")
-        .Help("Total count of invalid inputs")
+        .Help("Invalid input counter")
         .Register(*registry)
         .Add({});
 
     auto& out_of_range_total = prometheus::BuildCounter()
         .Name("out_of_range_input_total")
-        .Help("Total count of inputs outside the valid range")
+        .Help("Out of range counter")
         .Register(*registry)
         .Add({});
 
-    // ✅ exporter runs WITHOUT thread (simple & safe)
+    // 🚀 start exporter
     Exposer exposer{"0.0.0.0:" + std::to_string(PROMETHEUS_PORT)};
     exposer.RegisterCollectable(registry);
 
-    std::cout << "Exporter started on port " << PROMETHEUS_PORT << std::endl;
+    std::cout << "Service started on port " << PROMETHEUS_PORT << std::endl;
 
-    // 🔥 IMPORTANT: keep container alive forever
-    while (!stop_application) {
-        std::this_thread::sleep_for(std::chrono::seconds(2));
+    // 🔥 CRITICAL: KEEP CONTAINER ALIVE
+    while (true) {
+        std::this_thread::sleep_for(std::chrono::seconds(5));
     }
 
     return 0;
