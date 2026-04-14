@@ -104,12 +104,9 @@ int main() {
     Exposer exposer{"0.0.0.0:" + std::to_string(PROMETHEUS_PORT)};
     exposer.RegisterCollectable(registry);
 
-    std::cout << "Service started on port " << PROMETHEUS_PORT << std::endl;
+    std::cout << "Service running..." << std::endl;
 
-    // 🔥 CRITICAL: KEEP CONTAINER ALIVE
     while (true) {
-        std::this_thread::sleep_for(std::chrono::seconds(5));
-    }
-
+    std::this_thread::sleep_for(std::chrono::seconds(10));
     return 0;
 }
