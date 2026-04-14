@@ -104,7 +104,9 @@ int main() {
     // =========================
     // BLOCK MAIN THREAD (CRITICAL)
     // =========================
-    svr.listen("0.0.0.0", 8080);
-
+    if (!svr.listen("0.0.0.0", 8080)) {
+        std::cerr << "Failed to start server\n";
+        return 1;
+    }
     return 0;
 }
