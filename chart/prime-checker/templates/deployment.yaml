@@ -1,10 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}
-  labels:
-    app: prime-checker
-
+  name: prime-checker
 spec:
   replicas: 1
 
@@ -16,34 +13,29 @@ spec:
     metadata:
       labels:
         app: prime-checker
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9090"
 
     spec:
       containers:
       - name: prime-checker
-        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        image: your_dockerhub_username/prime-checker:latest
 
         ports:
         - name: http
           containerPort: 8080
+
         - name: metrics
           containerPort: 9090
 
-        # =========================
-        # HEALTHCHECK (правильный)
-        # =========================
         readinessProbe:
           httpGet:
             path: /
-            port: 8080
+            port: http
           initialDelaySeconds: 2
           periodSeconds: 5
 
         livenessProbe:
           httpGet:
             path: /
-            port: 8080
+            port: http
           initialDelaySeconds: 10
           periodSeconds: 10

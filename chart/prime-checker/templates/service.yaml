@@ -1,29 +1,18 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "prime-checker.fullname" . }}
-  labels:
-    {{- include "prime-checker.labels" . | nindent 4 }}
-
+  name: prime-checker
 spec:
-  type: {{ .Values.service.type }}
+  type: ClusterIP
 
   selector:
     app: prime-checker
 
   ports:
-    # =========================
-    # API порт (HTTP сервер)
-    # =========================
     - name: http
       port: 80
       targetPort: 8080
-      protocol: TCP
 
-    # =========================
-    # Prometheus metrics
-    # =========================
     - name: metrics
       port: 9090
       targetPort: 9090
-      protocol: TCP
