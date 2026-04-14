@@ -97,7 +97,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: helm-chart
-          path: ./prime-checker
+          path: ./chart/prime-checker
 
 
   # ===================================================================
