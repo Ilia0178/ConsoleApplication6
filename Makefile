@@ -142,3 +142,24 @@ port-forward:
 .PHONY: all-up
 all-up: build docker-build deploy status
 	@echo "🎉 SYSTEM READY"
+.PHONY: package
+
+package:
+	@echo "--- Creating .deb package ---"
+
+	mkdir -p prime-checker/DEBIAN
+	mkdir -p prime-checker/usr/bin
+
+	cp prime_checker prime-checker/usr/bin/
+
+	echo "Package: prime-checker" > prime-checker/DEBIAN/control
+	echo "Version: 1.0" >> prime-checker/DEBIAN/control
+	echo "Architecture: amd64" >> prime-checker/DEBIAN/control
+	echo "Maintainer: CI Builder <ci@example.com>" >> prime-checker/DEBIAN/control
+	echo "Description: Prime number checker with Prometheus metrics" >> prime-checker/DEBIAN/control
+
+	dpkg-deb --build prime-checker
+
+	mv prime-checker.deb prime-checker.deb || true
+
+	rm -rf prime-checker
