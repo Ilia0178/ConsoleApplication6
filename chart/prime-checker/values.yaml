@@ -1,12 +1,12 @@
 replicaCount: 1
 
 image:
-  repository: YOUR_DOCKERHUB_USERNAME/prime-checker
+  repository: ""
   tag: latest
   pullPolicy: IfNotPresent
 
 service:
-  type: NodePort
+  type: ClusterIP
   port: 80
   targetPort: 9090
 
