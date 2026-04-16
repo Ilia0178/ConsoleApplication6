@@ -44,9 +44,12 @@ jobs:
       - run: chmod +x prime_checker
       - name: Smoke test
         run: |
+          # Указываем путь к библиотекам
+          export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH 
           ./prime_checker &
           sleep 5
           curl -f "http://localhost:8080/check?num=17"
+          curl -f "http://localhost:9090/metrics" # Добавил для полной проверки
 
 # =========================================================
 # 3 PACKAGE: Создание .deb пакета

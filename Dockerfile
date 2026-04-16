@@ -1,43 +1,54 @@
 # =========================================================
-# СТАДИЯ 1: СБОРКА (Builder)
-# Используем ту же версию Ubuntu, что и в раннере GitHub
+# СТАДИЯ 1: Builder (Сборка зависимостей и приложения)
 # =========================================================
 FROM ubuntu:22.04 AS builder
 
-# 1. Установка системных зависимостей (Этот слой закэшируется один раз и надолго)
+# Установка всех инструментов для сборки
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential cmake git curl libcurl4-openssl-dev zlib1g-dev \
-    libssl-dev ca-certificates dpkg-dev automake libtool && \
-    rm -rf /var/lib/apt/lists/*
+    build-essential \
+    cmake \
+    git \
+    libcurl4-openssl-dev \
+    zlib1g-dev \
+    libssl-dev \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-# 2. Сборка внешних библиотек (prometheus-cpp)
-# Этот слой тоже будет закэширован. Он будет пересобираться, только если вы измените эту строку.
+# Сборка prometheus-cpp
+# (Эта часть закэшируется и будет пропускаться при изменении только кода приложения)
 RUN git clone --recursive https://github.com/jupp0r/prometheus-cpp.git /tmp/prom && \
     cd /tmp/prom && mkdir build && cd build && \
-    cmake .. -DBUILD_SHARED_LIBS=ON -DENABLE_PUSH=OFF && \
-    make -j$(nproc) && make install && ldconfig
+    cmake .. -DBUILD_SHARED_LIBS=ON -DENABLE_PUSH=OFF -DCMAKE_INSTALL_PREFIX=/usr/local && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig
 
 # =========================================================
-# СТАДИЯ 2: ФИНАЛЬНАЯ (Runtime)
+# СТАДИЯ 2: Runtime (Финальный образ)
 # =========================================================
 FROM ubuntu:22.04
 
-# 1. Установка рантайм-зависимостей
+# Установка только необходимых runtime-библиотек
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libstdc++6 libcurl4 zlib1g libssl3 ca-certificates dpkg && \
-    rm -rf /var/lib/apt/lists/*
+    libcurl4 \
+    libssl3 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-# 2. Копирование и установка .deb пакета
-# Docker Buildx увидит этот файл в контексте, потому что мы скачали его в пайплайне
-COPY *.deb /tmp/prime-checker.deb
+# Копируем библиотеки prometheus из стадии builder
+COPY --from=builder /usr/local/lib /usr/local/lib
+# Копируем заголовочные файлы если нужно (опционально) или просто обновляем кэш библиотек
+RUN ldconfig
 
-RUN dpkg -i /tmp/prime-checker.deb && rm /tmp/prime-checker.deb
+# Копируем скомпилированный бинарник (из артефакта, который вы скачали в CI)
+# ВАЖНО: убедитесь, что имя файла совпадает
+COPY prime_checker /usr/local/bin/prime_checker
 
-# 3. Финальная настройка библиотек
-RUN echo "/usr/local/lib" > /etc/ld.so.conf.d/prometheus.conf && ldconfig
+# Настройка путей для библиотек
+ENV LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 
-# 4. Настройки запуска
-ENV LD_LIBRARY_PATH=/usr/local/lib
+# Открываем порты
 EXPOSE 8080 9090
 
+# Запуск приложения
 CMD ["/usr/local/bin/prime_checker"]
