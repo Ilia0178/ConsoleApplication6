@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY . .
+COPY ConsoleApplication6.cpp .
 
 # =========================================================
 # httplib (HTTP server header)
@@ -59,7 +59,6 @@ COPY --from=builder /usr/local/lib/libprometheus-cpp* /usr/local/lib/
 
 RUN echo "/usr/local/lib" > /etc/ld.so.conf.d/prometheus.conf && ldconfig
 
-# ⚠️ порт должен совпадать с кодом (8080 или 9090)
 EXPOSE 8080
 
 CMD ["/usr/local/bin/prime_checker"]
