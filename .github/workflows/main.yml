@@ -3,191 +3,103 @@ name: CI/CD Pipeline
 on: [push]
 
 jobs:
-
 # =========================================================
-# 1 BUILD
+# 1 BUILD: Компиляция приложения
 # =========================================================
   build_job:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      # ================================
-      # System dependencies
-      # ================================
+      - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            cmake \
-            git \
-            wget \
-            libcurl4-openssl-dev \
-            zlib1g-dev
-
-      # ================================
-      # httplib.h
-      # ================================
-      - name: Install httplib header
+          sudo apt-get install -y build-essential cmake git wget libcurl4-openssl-dev zlib1g-dev
+      - name: Install httplib
         run: |
           mkdir -p third_party
-          wget -O third_party/httplib.h \
-          https://raw.githubusercontent.com/yhirose/cpp-httplib/master/httplib.h
-
-      # ================================
-      # prometheus-cpp
-      # ================================
-      - name: Build and install prometheus-cpp
+          wget -O third_party/httplib.h https://raw.githubusercontent.com/yhirose/cpp-httplib/master/httplib.h
+      - name: Build prometheus-cpp
         run: |
           git clone --recursive https://github.com/jupp0r/prometheus-cpp.git /tmp/prom
-          cd /tmp/prom
-          mkdir build && cd build
+          cd /tmp/prom && mkdir build && cd build
           cmake .. -DBUILD_SHARED_LIBS=ON -DENABLE_PUSH=OFF
-          make -j$(nproc)
-          sudo make install
-          sudo ldconfig
-
-      # ================================
-      # build app
-      # ================================
+          make -j$(nproc) && sudo make install && sudo ldconfig
       - name: Build app
-        run: |
-          make build CXXFLAGS="-Ithird_party -I/usr/local/include"
-
-      # ================================
-      # upload binary
-      # ================================
-      - name: Upload binary
-        uses: actions/upload-artifact@v4
+        run: make build CXXFLAGS="-Ithird_party -I/usr/local/include"
+      - uses: actions/upload-artifact@v4
         with:
           name: prime_checker_binary
           path: prime_checker
 
-
 # =========================================================
-# 2 TEST
+# 2 TEST: Проверка работоспособности
 # =========================================================
   test_job:
     needs: build_job
     runs-on: ubuntu-latest
-
     steps:
-      - name: Download binary
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: prime_checker_binary
-          path: ./
-
-      - name: Make executable
-        run: chmod +x prime_checker
-
+      - run: chmod +x prime_checker
       - name: Smoke test
         run: |
           ./prime_checker &
-          sleep 2
-          curl "http://localhost:8080/check?num=17" || true
-
+          sleep 5
+          curl -f "http://localhost:8080/check?num=17"
+          curl -f "http://localhost:9090/metrics"
 
 # =========================================================
-# 3 PACKAGE (ОПТИМИЗИРОВАННЫЙ)
+# 3 PACKAGE: Создание .deb пакета
 # =========================================================
   package_job:
     needs: test_job
     runs-on: ubuntu-latest
-  
     steps:
-        # ================================
-        # 🔥 ВАЖНО: checkout репозитория
-        # ================================
-        - name: Checkout code
-          uses: actions/checkout@v4
-    
-        # ================================
-        # Cache apt
-        # ================================
-        - name: Cache apt
-          uses: actions/cache@v3
-          with:
-            path: /var/cache/apt
-            key: apt-${{ runner.os }}
-          
-        # ================================
-        # Install packaging tools
-        # ================================
-        - name: Install packaging tools
-          run: |
-            sudo apt-get update
-            sudo apt-get install -y --no-install-recommends dpkg-dev
-          
-        # ================================
-        # Download binary
-        # ================================
-        - name: Download binary
-          uses: actions/download-artifact@v4
-          with:
-            name: prime_checker_binary
-            path: ./
-          
-        - name: Make executable
-          run: chmod +x prime_checker
-          
-        # ================================
-        # Build deb
-        # ================================
-        - name: Build deb package
-          run: make package
-          
-        # ================================
-        # Upload deb
-        # ================================
-        - name: Upload deb
-          uses: actions/upload-artifact@v4
-          with:
-            name: prime-checker-deb
-            path: ./*.deb
-
-
-# =========================================================
-# 4 DOCKER BUILD & PUSH
-# =========================================================
-  docker_build_and_push:
-    name: Build and Push Docker Image
-    needs: package_job # Зависим от успешной упаковки .deb
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download deb
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: prime_checker_binary
+      - run: chmod +x prime_checker
+      - name: Build deb
+        run: make package
+      - uses: actions/upload-artifact@v4
         with:
           name: prime-checker-deb
-          path: ./
+          path: ./*.deb
 
-      # 🔥 ВАЖНО: Setup Docker Buildx
+# =========================================================
+# 4 DOCKER: Сборка с кэшированием (BuildKit + GHA Cache)
+# =========================================================
+  docker_build_and_push:
+    needs: package_job
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/download-artifact@v4
+        with:
+          name: prime-checker-deb
+          path: .
+          
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
-      # 🔥 ВАЖНО: Login to Docker Hub
-      - name: Login Docker Hub
+        
+      - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN_FOR_LOGIN }} # Используйте PAT
-
-      # 🔥 ВАЖНО: Build and push image with GHA cache
+          password: ${{ secrets.DOCKERHUB_TOKEN_FOR_LOGIN }}
+        
       - name: Build and push image
-        uses: docker/build-push-action@v5 # Обновите до v5 для лучшего кэширования
+        uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile # Убедитесь, что Dockerfile лежит в корне
+          file: ./Dockerfile
           push: true
-          tags: | # Используйте теги для версионирования
+          tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:${{ github.sha }}
+          # 🔥 Включаем кэширование слоев BuildKit в GitHub Actions
           cache-from: type=gha
           cache-to: type=gha,mode=max
