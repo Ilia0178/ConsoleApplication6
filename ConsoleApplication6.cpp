@@ -20,7 +20,7 @@ static inline void signal_handler(int signal) {
     if (signal == SIGINT || signal == SIGTERM) {
         running.store(false, std::memory_order_relaxed);
     }
-}
+} 
 
 // быстрее и чуть чище проверка
 bool isPrime(long long n) {
