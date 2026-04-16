@@ -67,41 +67,49 @@ jobs:
 # 4 DOCKER: Сборка с кэшированием (BuildKit + GHA Cache)
 # =========================================================
   docker_build_and_push:
-    needs: package_job
-    runs-on: ubuntu-latest
+    needs: package_job # Этот шаг запускается только после успешного завершения package_job
+    runs-on: ubuntu-latest # Используем виртуальную машину Ubuntu для сборки
     steps:
-      - uses: actions/checkout@v4
-      
-      # Скачиваем бинарник в текущую директорию (.)
-      - uses: actions/download-artifact@v4
+      - name: Checkout code
+        uses: actions/checkout@v4 # Получаем код из репозитория
+
+      # Скачиваем бинарник prime_checker, который был собран в package_job
+      # path: . означает, что файл будет сохранен в корне репозитория
+      - name: Download prime_checker binary
+        uses: actions/download-artifact@v4
         with:
           name: prime_checker_binary
           path: .
-          
-      # Скачиваем .deb (если нужно для Docker)
-      - uses: actions/download-artifact@v4
+
+      # Скачиваем .deb пакет, если он тоже нужен для сборки Docker (хотя в текущем Dockerfile он не используется)
+      - name: Download prime-checker .deb package
+        uses: actions/download-artifact@v4
         with:
           name: prime-checker-deb
           path: .
 
-      - name: Debug files
-        run: ls -la # Убедитесь в логах, что prime_checker здесь есть!
+      # Шаг для отладки: выводит список файлов в корневой директории.
+      # Используйте его, если prime_checker не находится при сборке Docker.
+      - name: Debug - List files
+        run: |
+          echo "Files in current directory:"
+          ls -la
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        
+        uses: docker/setup-buildx-action@v3 # Настраиваем Docker Buildx для более эффективной сборки
+
       - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN_FOR_LOGIN }}
-        
-      - name: Build and push image
+          username: ${{ secrets.DOCKERHUB_USERNAME }} # Логин пользователя Docker Hub из Secrets
+          password: ${{ secrets.DOCKERHUB_TOKEN_FOR_LOGIN }} # Пароль/токен для Docker Hub из Secrets
+
+      - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          context: . # Контекст сборки - текущая директория (где находятся Dockerfile и prime_checker)
+          file: ./Dockerfile # Путь к файлу Dockerfile
+          push: true # Флаг, означающий, что образ нужно пушить в Docker Hub
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest # Тег для образа (имя пользователя/имя образа:тег)
+          cache-from: type=gha # Указываем, что можем брать кэш из GitHub Actions
+          cache-to: type=gha,mode=max # Указываем, что хотим сохранять кэш в GitHub Actions
