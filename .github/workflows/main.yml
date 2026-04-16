@@ -13,7 +13,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake git libcurl4-openssl-dev zlib1g-dev
+          sudo apt-get install -y build-essential cmake git wget libcurl4-openssl-dev zlib1g-dev
       - name: Install httplib
         run: |
           mkdir -p third_party
@@ -22,21 +22,14 @@ jobs:
         run: |
           git clone --recursive https://github.com/jupp0r/prometheus-cpp.git /tmp/prom
           cd /tmp/prom && mkdir build && cd build
-          # Убедитесь, что CMAKE_INSTALL_PREFIX правильный!
-          cmake .. -DBUILD_SHARED_LIBS=ON -DENABLE_PUSH=OFF -DCMAKE_INSTALL_PREFIX=/usr/local 
-          make -j$(nproc) && make install && ldconfig
+          cmake .. -DBUILD_SHARED_LIBS=ON -DENABLE_PUSH=OFF
+          make -j$(nproc) && sudo make install && sudo ldconfig
       - name: Build app
         run: make build CXXFLAGS="-Ithird_party -I/usr/local/include"
       - uses: actions/upload-artifact@v4
         with:
           name: prime_checker_binary
           path: prime_checker
-      # === ДОБАВИТЬ ЭТОТ ШАГ ===
-      - name: Upload prometheus libraries
-        uses: actions/upload-artifact@v4
-        with:
-          name: prometheus_libs
-          path: /usr/local/lib/libprometheus-cpp-core.so.*  # Загружаем только нужные библиотеки
 
 # =========================================================
 # 2 TEST: Проверка работоспособности
@@ -48,33 +41,9 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: prime_checker_binary
-      # === ДОБАВИТЬ ЭТОТ ШАГ ===
-      - name: Download prometheus libraries
-        uses: actions/download-artifact@v4
-        with:
-          name: prometheus_libs
-          path: /usr/local/lib # Скачиваем в то же место, куда они должны установиться
-      
       - run: chmod +x prime_checker
       - name: Smoke test
         run: |
-          # Проверяем, что библиотеки скачались
-          ls -l /usr/local/lib/libprometheus-cpp-core.so*
-          
-          # Указываем путь к библиотекам
-          export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH 
-          ./prime_checker &
-          sleep 5 # Даем время приложению запуститься
-          
-          echo "Testing prime checker endpoint..."
-          curl -f "http://localhost:8080/check?num=17" | grep "is prime" || echo "Prime check failed"
-          
-          echo "Testing metrics endpoint..."
-          curl -f "http://localhost:9090/metrics" | grep "prime_checks_total" || echo "Metrics endpoint failed"
-          
-          # Опционально: Остановить приложение после тестов
-          # pkill prime_checker || true
-
 # =========================================================
 # 3 PACKAGE: Создание .deb пакета
 # =========================================================
