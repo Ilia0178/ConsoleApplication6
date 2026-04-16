@@ -72,11 +72,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      # Скачиваем бинарник в текущую директорию (.)
+      - uses: actions/download-artifact@v4
+        with:
+          name: prime_checker_binary
+          path: .
+          
+      # Скачиваем .deb (если нужно для Docker)
       - uses: actions/download-artifact@v4
         with:
           name: prime-checker-deb
           path: .
-          
+
+      - name: Debug files
+        run: ls -la # Убедитесь в логах, что prime_checker здесь есть!
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         
@@ -92,9 +102,6 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:${{ github.sha }}
-          # 🔥 Включаем кэширование слоев BuildKit в GitHub Actions
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
