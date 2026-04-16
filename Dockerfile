@@ -1,39 +1,63 @@
+# =========================
+# BUILD STAGE
+# =========================
 FROM ubuntu:22.04 AS builder
 
+ENV DEBIAN_FRONTEND=noninteractive
+
 RUN apt-get update && apt-get install -y \
-    build-essential cmake git curl \
-    libcurl4-openssl-dev zlib1g-dev libssl-dev && \
-    rm -rf /var/lib/apt/lists/*
+    build-essential \
+    g++ \
+    make \
+    cmake \
+    git \
+    wget \
+    curl \
+    libcurl4-openssl-dev \
+    zlib1g-dev \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY . .
 
-RUN git clone https://github.com/yhirose/cpp-httplib.git /tmp/httplib && \
-    mkdir -p third_party && \
-    cp /tmp/httplib/httplib.h third_party/
+# download httplib (fixed version)
+RUN mkdir -p third_party && \
+    wget -q -O third_party/httplib.h \
+    https://raw.githubusercontent.com/yhirose/cpp-httplib/v0.15.3/httplib.h
 
-RUN git clone --recursive https://github.com/jupp0r/prometheus-cpp.git /tmp/prom && \
+# build prometheus-cpp (fixed version)
+RUN git clone --branch v1.2.4 --recursive https://github.com/jupp0r/prometheus-cpp.git /tmp/prom && \
     cd /tmp/prom && mkdir build && cd build && \
-    cmake .. -DBUILD_SHARED_LIBS=ON -DENABLE_PUSH=OFF && \
-    make -j$(nproc) && make install
+    cmake .. -DBUILD_SHARED_LIBS=OFF -DENABLE_PUSH=OFF && \
+    make -j$(nproc) && \
+    make install && ldconfig
 
-RUN g++ -std=c++17 -O2 -pthread \
-    -Ithird_party \
-    ConsoleApplication6.cpp -o prime_checker \
-    -lprometheus-cpp-pull -lprometheus-cpp-core
+# build app via Makefile (single source of truth)
+RUN make build
 
-# ================= RUNTIME =================
 
+# =========================
+# RUNTIME STAGE
+# =========================
 FROM ubuntu:22.04
 
+ENV DEBIAN_FRONTEND=noninteractive
+
 RUN apt-get update && apt-get install -y \
-    libstdc++6 libcurl4 zlib1g libssl3 && \
-    rm -rf /var/lib/apt/lists/*
+    libcurl4 \
+    zlib1g \
+    libssl3 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /app/prime_checker /usr/local/bin/
-COPY --from=builder /usr/local/lib/libprometheus-cpp* /usr/local/lib/
+WORKDIR /app
 
-RUN ldconfig
+# copy only binary
+COPY --from=builder /app/prime_checker /usr/local/bin/prime_checker
+
+# optional safety
+RUN chmod +x /usr/local/bin/prime_checker
 
 EXPOSE 8080 9090
 
