@@ -94,60 +94,60 @@ jobs:
 # =========================================================
 # 3 PACKAGE (ОПТИМИЗИРОВАННЫЙ)
 # =========================================================
-package_job:
-  needs: test_job
-  runs-on: ubuntu-latest
-
-  steps:
-      # ================================
-      # 🔥 ВАЖНО: checkout репозитория
-      # ================================
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      # ================================
-      # Cache apt
-      # ================================
-      - name: Cache apt
-        uses: actions/cache@v3
-        with:
-          path: /var/cache/apt
-          key: apt-${{ runner.os }}
-
-      # ================================
-      # Install packaging tools
-      # ================================
-      - name: Install packaging tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends dpkg-dev
-
-      # ================================
-      # Download binary
-      # ================================
-      - name: Download binary
-        uses: actions/download-artifact@v4
-        with:
-          name: prime_checker_binary
-          path: ./
-
-      - name: Make executable
-        run: chmod +x prime_checker
-
-      # ================================
-      # Build deb
-      # ================================
-      - name: Build deb package
-        run: make package
-
-      # ================================
-      # Upload deb
-      # ================================
-      - name: Upload deb
-        uses: actions/upload-artifact@v4
-        with:
-          name: prime-checker-deb
-          path: ./*.deb
+  package_job:
+    needs: test_job
+    runs-on: ubuntu-latest
+  
+    steps:
+        # ================================
+        # 🔥 ВАЖНО: checkout репозитория
+        # ================================
+        - name: Checkout code
+          uses: actions/checkout@v4
+    
+        # ================================
+        # Cache apt
+        # ================================
+        - name: Cache apt
+          uses: actions/cache@v3
+          with:
+            path: /var/cache/apt
+            key: apt-${{ runner.os }}
+          
+        # ================================
+        # Install packaging tools
+        # ================================
+        - name: Install packaging tools
+          run: |
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends dpkg-dev
+          
+        # ================================
+        # Download binary
+        # ================================
+        - name: Download binary
+          uses: actions/download-artifact@v4
+          with:
+            name: prime_checker_binary
+            path: ./
+          
+        - name: Make executable
+          run: chmod +x prime_checker
+          
+        # ================================
+        # Build deb
+        # ================================
+        - name: Build deb package
+          run: make package
+          
+        # ================================
+        # Upload deb
+        # ================================
+        - name: Upload deb
+          uses: actions/upload-artifact@v4
+          with:
+            name: prime-checker-deb
+            path: ./*.deb
 
 
 # =========================================================
