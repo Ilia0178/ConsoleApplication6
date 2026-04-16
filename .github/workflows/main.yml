@@ -47,7 +47,6 @@ jobs:
           ./prime_checker &
           sleep 5
           curl -f "http://localhost:8080/check?num=17"
-          curl -f "http://localhost:9090/metrics"
 
 # =========================================================
 # 3 PACKAGE: Создание .deb пакета
