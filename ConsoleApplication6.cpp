@@ -16,17 +16,17 @@ using namespace prometheus;
 
 std::atomic<bool> running{true};
 
-void signal_handler(int signal) {
+static inline void signal_handler(int signal) {
     if (signal == SIGINT || signal == SIGTERM) {
-        std::cout << "Stopping service...\n";
-        running = false;
+        running.store(false, std::memory_order_relaxed);
     }
 }
 
+// быстрее и чуть чище проверка
 bool isPrime(long long n) {
-    if (n <= 1) return false;
-    if (n <= 3) return true;
-    if (n % 2 == 0 || n % 3 == 0) return false;
+    if (n < 2) return false;
+    if (n % 2 == 0) return n == 2;
+    if (n % 3 == 0) return n == 3;
 
     for (long long i = 5; i * i <= n; i += 6) {
         if (n % i == 0 || n % (i + 2) == 0)
@@ -53,45 +53,57 @@ int main() {
         .Register(*registry)
         .Add({});
 
+    // Prometheus endpoint (keep minimal overhead)
     Exposer exposer{"0.0.0.0:9090"};
     exposer.RegisterCollectable(registry);
 
     httplib::Server svr;
 
-    svr.Get("/", [](const httplib::Request&, httplib::Response& res) {
-        res.set_content("OK", "text/plain");
+    // reduce allocations (static responses)
+    static const std::string ok = "OK";
+    static const std::string bad_request = "invalid number";
+
+    svr.Get("/", [&](const httplib::Request&, httplib::Response& res) {
+        res.set_content(ok, "text/plain");
     });
 
     svr.Get("/check", [&](const httplib::Request& req, httplib::Response& res) {
+        const auto& num_str = req.get_param_value("num");
+
+        if (num_str.empty()) {
+            res.status = 400;
+            res.set_content("missing num", "text/plain");
+            return;
+        }
+
+        long long n;
         try {
-            if (!req.has_param("num")) {
-                res.status = 400;
-                res.set_content("missing num", "text/plain");
-                return;
-            }
-
-            long long n = std::stoll(req.get_param_value("num"));
-            checks.Increment();
-
-            if (isPrime(n)) {
-                found.Increment();
-                res.set_content(std::to_string(n) + " is prime", "text/plain");
-            } else {
-                res.set_content(std::to_string(n) + " is not prime", "text/plain");
-            }
+            n = std::stoll(num_str);
         } catch (...) {
             res.status = 400;
-            res.set_content("invalid number", "text/plain");
+            res.set_content(bad_request, "text/plain");
+            return;
+        }
+
+        checks.Increment();
+
+        if (isPrime(n)) {
+            found.Increment();
+            res.set_content(num_str + " is prime", "text/plain");
+        } else {
+            res.set_content(num_str + " is not prime", "text/plain");
         }
     });
 
-    std::cout << "Server started on port 8080\n";
+    std::cout << "Server started on 8080\n";
 
+    // run server in background thread
     std::thread server_thread([&]() {
         svr.listen("0.0.0.0", 8080);
     });
 
-    while (running) {
+    // low CPU idle loop
+    while (running.load(std::memory_order_relaxed)) {
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
 
