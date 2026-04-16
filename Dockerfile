@@ -5,11 +5,18 @@ FROM ubuntu:22.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# --- FIX APT MIRROR ISSUES (IMPORTANT) ---
+# =========================================================
+# STABLE APT UPDATE (FIX MIRROR FAILURES)
+# =========================================================
 RUN set -eux; \
-    apt-get clean; \
     rm -rf /var/lib/apt/lists/*; \
-    apt-get update -o Acquire::Retries=5 -o Acquire::ForceIPv4=true; \
+    apt-get clean; \
+    for i in 1 2 3 4 5; do \
+        apt-get update \
+            -o Acquire::Retries=10 \
+            -o Acquire::ForceIPv4=true \
+            -o Acquire::http::Timeout=30 && break || sleep 10; \
+    done; \
     apt-get install -y --no-install-recommends \
         build-essential \
         g++ \
@@ -28,7 +35,7 @@ WORKDIR /app
 COPY . .
 
 # =========================================================
-# httplib (pinned version)
+# httplib (fixed version)
 # =========================================================
 RUN mkdir -p third_party && \
     wget -q -O third_party/httplib.h \
@@ -41,30 +48,31 @@ RUN git clone --branch v1.2.4 --recursive \
     https://github.com/jupp0r/prometheus-cpp.git /tmp/prom && \
     cd /tmp/prom && mkdir build && cd build && \
     cmake .. \
-      -DBUILD_SHARED_LIBS=OFF \
-      -DENABLE_PUSH=OFF && \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DENABLE_PUSH=OFF && \
     make -j$(nproc) && \
     make install && \
     ldconfig
 
 # =========================================================
-# BUILD APPLICATION (single source: Makefile)
+# BUILD APP (single source: Makefile)
 # =========================================================
 RUN make build
 
 
 # =========================================================
-# RUNTIME STAGE (clean & minimal)
+# RUNTIME STAGE
 # =========================================================
 FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update -o Acquire::Retries=5 -o Acquire::ForceIPv4=true && \
+RUN set -eux; \
+    apt-get update -o Acquire::Retries=10 -o Acquire::ForceIPv4=true; \
     apt-get install -y --no-install-recommends \
         libcurl4 \
         zlib1g \
-        ca-certificates && \
+        ca-certificates; \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
