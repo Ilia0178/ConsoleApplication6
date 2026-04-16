@@ -73,11 +73,11 @@ COPY --from=builder /app/prime_checker /usr/local/bin/prime_checker
 # prometheus libs (needed for runtime linking)
 COPY --from=builder /usr/local/lib/libprometheus-cpp* /usr/local/lib/
 
-RUN echo "lib" > /etc/ld.so.conf.d/prometheus.conf && ldconfig
+RUN echo "/usr/local/lib" > /etc/ld.so.conf.d/prometheus.conf && ldconfig
 
 # ports
 EXPOSE 8080
 EXPOSE 9090
 
 # run
-CMD ["bin/prime_checker"]
+CMD ["/usr/local/bin/prime_checker"]
