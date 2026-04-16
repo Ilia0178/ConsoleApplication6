@@ -94,11 +94,17 @@ jobs:
 # =========================================================
 # 3 PACKAGE (ОПТИМИЗИРОВАННЫЙ)
 # =========================================================
-  package_job:
-    needs: test_job
-    runs-on: ubuntu-latest
+package_job:
+  needs: test_job
+  runs-on: ubuntu-latest
 
-    steps:
+  steps:
+      # ================================
+      # 🔥 ВАЖНО: checkout репозитория
+      # ================================
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       # ================================
       # Cache apt
       # ================================
@@ -109,7 +115,7 @@ jobs:
           key: apt-${{ runner.os }}
 
       # ================================
-      # Install ONLY required tool
+      # Install packaging tools
       # ================================
       - name: Install packaging tools
         run: |
