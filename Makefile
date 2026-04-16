@@ -142,8 +142,8 @@ port-forward:
 .PHONY: all-up
 all-up: build docker-build deploy status
 	@echo "🎉 SYSTEM READY"
-.PHONY: package
 
+.PHONY: package
 package:
 	@echo "--- Creating .deb package ---"
 
