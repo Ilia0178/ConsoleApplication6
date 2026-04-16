@@ -1,69 +1,54 @@
 # =========================================================
-# СТАДИЯ СБОРКИ (Builder)
-# Используем Ubuntu 22.04 как базовый образ
+# СТАДИЯ 1: СБОРКА (Builder)
 # =========================================================
 FROM ubuntu:22.04 AS builder
 
-# Устанавливаем инструменты для сборки
+# Устанавливаем инструменты
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    cmake \
-    git \
-    curl \
-    libcurl4-openssl-dev \
-    zlib1g-dev \
-    libssl-dev \
-    ca-certificates && \
+    build-essential cmake git curl libcurl4-openssl-dev zlib1g-dev libssl-dev ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-
-# Копируем исходный код
 COPY . .
 
-# Установка зависимостей (httplib)
+# Сборка библиотек и приложения (ваши RUN команды из предыдущего сообщения)
 RUN git clone https://github.com/yhirose/cpp-httplib.git /tmp/httplib && \
-    mkdir -p third_party && \
-    cp /tmp/httplib/httplib.h third_party/
+    mkdir -p third_party && cp /tmp/httplib/httplib.h third_party/
 
-# Установка Prometheus-cpp (собираем из исходников)
 RUN git clone --recursive https://github.com/jupp0r/prometheus-cpp.git /tmp/prom && \
     cd /tmp/prom && mkdir build && cd build && \
     cmake .. -DBUILD_SHARED_LIBS=ON -DENABLE_PUSH=OFF && \
     make -j$(nproc) && make install && ldconfig
 
-# Компиляция вашего приложения
-# Замените ConsoleApplication6.cpp на имя вашего файла с main()
 RUN g++ -Wall -Wextra -std=c++17 -O2 -pthread \
-    -Ithird_party \
-    ConsoleApplication6.cpp -o prime_checker \
+    -Ithird_party ConsoleApplication6.cpp -o prime_checker \
     -lprometheus-cpp-core -lprometheus-cpp-pull
 
 # =========================================================
-# ФИНАЛЬНАЯ СТАДИЯ (Runtime)
+# СТАДИЯ 2: ФИНАЛЬНАЯ (Runtime)
 # =========================================================
 FROM ubuntu:22.04
 
-# Устанавливаем только необходимые рантайм-библиотеки
+# 1. Установка базовых библиотек (соответствует слою №6 в вашем логе)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libstdc++6 \
-    libcurl4 \
-    zlib1g \
-    libssl3 \
-    ca-certificates && \
+    libstdc++6 libcurl4 zlib1g libssl3 ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-# Копируем бинарник из стадии сборки
+# 2. Копирование бинарника (слой №7)
 COPY --from=builder /app/prime_checker /usr/local/bin/prime_checker
 
-# Копируем скомпилированные библиотеки Prometheus
+# 3. Копирование библиотек (слой №8)
 COPY --from=builder /usr/local/lib/libprometheus-cpp* /usr/local/lib/
 
-# Настраиваем пути для поиска динамических библиотек
+# 4. Настройка библиотек (слой №9)
 RUN echo "/usr/local/lib" > /etc/ld.so.conf.d/prometheus.conf && ldconfig
 
-# Открываем порты (8080 - приложение, 9090 - метрики)
+# 5. Установка переменной окружения (слой №10)
+# Добавляем для надежности, чтобы система видела библиотеки
+ENV LD_LIBRARY_PATH=/usr/local/lib
+
+# 6. Порты (слой №11)
 EXPOSE 8080 9090
 
-# Запуск приложения
-ENTRYPOINT ["/usr/local/bin/prime_checker"]
+# 7. Запуск (слой №12)
+CMD ["/usr/local/bin/prime_checker"]
