@@ -22,7 +22,6 @@ void signal_handler(int signal) {
     }
 }
 
-// -------------------- prime --------------------
 bool isPrime(long long n) {
     if (n <= 1) return false;
     if (n <= 3) return true;
