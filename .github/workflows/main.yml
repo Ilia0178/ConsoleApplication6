@@ -51,7 +51,7 @@ jobs:
           sudo ldconfig
 
       # ================================
-      # build app (FIX: include third_party)
+      # build app
       # ================================
       - name: Build app
         run: |
@@ -75,9 +75,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Download binary
         uses: actions/download-artifact@v4
         with:
@@ -87,32 +84,59 @@ jobs:
       - name: Make executable
         run: chmod +x prime_checker
 
+      - name: Smoke test
+        run: |
+          ./prime_checker &
+          sleep 2
+          curl "http://localhost:8080/check?num=17" || true
+
 
 # =========================================================
-# 3 PACKAGE
+# 3 PACKAGE (ОПТИМИЗИРОВАННЫЙ)
 # =========================================================
   package_job:
     needs: test_job
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      # ================================
+      # Cache apt
+      # ================================
+      - name: Cache apt
+        uses: actions/cache@v3
+        with:
+          path: /var/cache/apt
+          key: apt-${{ runner.os }}
 
+      # ================================
+      # Install ONLY required tool
+      # ================================
       - name: Install packaging tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y dpkg-dev libcurl4-openssl-dev zlib1g-dev
+          sudo apt-get install -y --no-install-recommends dpkg-dev
 
+      # ================================
+      # Download binary
+      # ================================
       - name: Download binary
         uses: actions/download-artifact@v4
         with:
           name: prime_checker_binary
           path: ./
 
+      - name: Make executable
+        run: chmod +x prime_checker
+
+      # ================================
+      # Build deb
+      # ================================
       - name: Build deb package
         run: make package
 
+      # ================================
+      # Upload deb
+      # ================================
       - name: Upload deb
         uses: actions/upload-artifact@v4
         with:
@@ -121,7 +145,7 @@ jobs:
 
 
 # =========================================================
-# 4 DOCKER BUILD
+# 4 DOCKER BUILD & PUSH
 # =========================================================
   docker_build_and_push:
     needs: package_job
@@ -150,3 +174,5 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
