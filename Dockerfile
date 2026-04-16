@@ -44,7 +44,6 @@ COPY --from=builder /usr/local/lib/libprometheus-cpp* /usr/local/lib/
 RUN echo "/usr/local/lib" > /etc/ld.so.conf.d/prometheus.conf && ldconfig
 
 # 5. Установка переменной окружения (слой №10)
-# Добавляем для надежности, чтобы система видела библиотеки
 ENV LD_LIBRARY_PATH=/usr/local/lib
 
 # 6. Порты (слой №11)
