@@ -1,54 +1,40 @@
 FROM ubuntu:22.04 AS builder
 
 RUN apt-get update && apt-get install -y \
-    build-essential \
-    cmake \
-    git \
-    curl \
-    libcurl4-openssl-dev \
-    zlib1g-dev \
-    libssl-dev \
-    ca-certificates && \
+    build-essential cmake git curl \
+    libcurl4-openssl-dev zlib1g-dev libssl-dev && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY . .
 
-# httplib
 RUN git clone https://github.com/yhirose/cpp-httplib.git /tmp/httplib && \
-    mkdir -p /app/third_party && \
-    cp /tmp/httplib/httplib.h /app/third_party/
+    mkdir -p third_party && \
+    cp /tmp/httplib/httplib.h third_party/
 
-# prometheus-cpp
 RUN git clone --recursive https://github.com/jupp0r/prometheus-cpp.git /tmp/prom && \
     cd /tmp/prom && mkdir build && cd build && \
     cmake .. -DBUILD_SHARED_LIBS=ON -DENABLE_PUSH=OFF && \
-    make -j$(nproc) && make install && ldconfig
+    make -j$(nproc) && make install
 
-# build
-RUN g++ -Wall -Wextra -std=c++17 -O2 -pthread \
-    -I/app/third_party \
+RUN g++ -std=c++17 -O2 -pthread \
+    -Ithird_party \
     ConsoleApplication6.cpp -o prime_checker \
-    -lprometheus-cpp-pull \
-    -lprometheus-cpp-core
+    -lprometheus-cpp-pull -lprometheus-cpp-core
+
+# ================= RUNTIME =================
 
 FROM ubuntu:22.04
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libstdc++6 \
-    libcurl4 \
-    zlib1g \
-    libssl3 \
-    ca-certificates && \
+RUN apt-get update && apt-get install -y \
+    libstdc++6 libcurl4 zlib1g libssl3 && \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /app/prime_checker /usr/local/bin/prime_checker
+COPY --from=builder /app/prime_checker /usr/local/bin/
 COPY --from=builder /usr/local/lib/libprometheus-cpp* /usr/local/lib/
 
-RUN echo "/usr/local/lib" > /etc/ld.so.conf.d/prometheus.conf && ldconfig
+RUN ldconfig
 
-ENV LD_LIBRARY_PATH=/usr/local/lib
+EXPOSE 8080 9090
 
-EXPOSE 8080
-
-CMD ["/usr/local/bin/prime_checker"]
+CMD ["prime_checker"]

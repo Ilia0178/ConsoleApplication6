@@ -2,6 +2,5 @@ apiVersion: v2
 name: prime-checker
 description: Prime checker with Prometheus metrics
 type: application
-
 version: 0.1.0
 appVersion: "1.0.0"
