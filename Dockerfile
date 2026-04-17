@@ -1,5 +1,5 @@
 # СТАДИЯ 1: Builder
-FROM ubuntu:22.04 AS builder
+FROM ubuntu:24.04 AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential cmake git libcurl4-openssl-dev zlib1g-dev \
@@ -11,7 +11,7 @@ RUN git clone --recursive https://github.com/jupp0r/prometheus-cpp.git /tmp/prom
     make -j$(nproc) && make install && ldconfig
 
 # СТАДИЯ 2: Runtime
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libcurl4 libssl3 ca-certificates && rm -rf /var/lib/apt/lists/*
