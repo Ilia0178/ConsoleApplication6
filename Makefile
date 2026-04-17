@@ -1,26 +1,17 @@
-# =========================================================
-# PROJECT CONFIG
-# =========================================================
+
 TARGET = prime_checker
 SRC = ConsoleApplication6.cpp
 CXX = g++
 
-# include paths
 CXXFLAGS = -Wall -Wextra -std=c++17 -O2 -pthread -I. -I/usr/local/include
 LDFLAGS = -L/usr/local/lib -lprometheus-cpp-core -lprometheus-cpp-pull
 
 PKG_NAME = prime-checker
 DEB_FILE = $(PKG_NAME).deb
 
-# =========================================================
-# DEFAULT
-# =========================================================
 .PHONY: all
 all: build
 
-# =========================================================
-# INSTALL DEPENDENCIES
-# =========================================================
 .PHONY: setup
 setup:
 	@echo "📦 Installing dependencies..."
@@ -36,9 +27,6 @@ setup:
 		zlib1g-dev
 	@echo "✔ dependencies ready"
 
-# =========================================================
-# DOWNLOAD HTTPLIB
-# =========================================================
 .PHONY: deps
 deps:
 	@echo "📦 Downloading httplib.h..."
@@ -47,9 +35,6 @@ deps:
 		https://raw.githubusercontent.com/yhirose/cpp-httplib/master/httplib.h
 	@echo "✔ httplib ready"
 
-# =========================================================
-# BUILD PROMETHEUS (optional if not installed)
-# =========================================================
 .PHONY: prom
 prom:
 	@echo "📦 Building prometheus-cpp..."
@@ -62,25 +47,16 @@ prom:
 		echo "✔ prometheus already installed"; \
 	fi
 
-# =========================================================
-# BUILD APP
-# =========================================================
 .PHONY: build
 build: setup deps prom
 	@echo "🚀 Building application..."
 	$(CXX) $(CXXFLAGS) $(SRC) -o $(TARGET) $(LDFLAGS)
 	@echo "✔ build complete"
 
-# =========================================================
-# RUN LOCALLY
-# =========================================================
 .PHONY: run
 run:
 	./$(TARGET)
 
-# =========================================================
-# TEST SIMPLE
-# =========================================================
 .PHONY: test
 test: build
 	@echo "🧪 Testing API..."
@@ -88,31 +64,19 @@ test: build
 	sleep 2
 	curl "http://localhost:8080/check?num=17" || true
 
-# =========================================================
-# CLEAN
-# =========================================================
 .PHONY: clean
 clean:
 	rm -f $(TARGET)
 	rm -rf third_party
 
-# =========================================================
-# DOCKER BUILD
-# =========================================================
 .PHONY: docker-build
 docker-build:
 	docker build -t $(PKG_NAME):latest .
 
-# =========================================================
-# DOCKER RUN
-# =========================================================
 .PHONY: docker-run
 docker-run:
 	docker run -p 8080:8080 -p 9090:9090 $(PKG_NAME):latest
 
-# =========================================================
-# HELM DEPLOY
-# =========================================================
 .PHONY: deploy
 deploy:
 	@echo "🚀 Deploying with Helm..."
@@ -121,24 +85,15 @@ deploy:
 		--set image.repository=your-dockerhub/$(PKG_NAME) \
 		--set image.tag=latest
 
-# =========================================================
-# KUBECTL STATUS
-# =========================================================
 .PHONY: status
 status:
 	kubectl get pods
 	kubectl get svc
 
-# =========================================================
-# PORT FORWARD
-# =========================================================
 .PHONY: port-forward
 port-forward:
 	kubectl port-forward svc/$(PKG_NAME) 8080:80
 
-# =========================================================
-# FULL PIPELINE
-# =========================================================
 .PHONY: all-up
 all-up: build docker-build deploy status
 	@echo "🎉 SYSTEM READY"
