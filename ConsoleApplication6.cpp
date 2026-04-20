@@ -20,9 +20,8 @@ static inline void signal_handler(int signal) {
     if (signal == SIGINT || signal == SIGTERM) {
         running.store(false, std::memory_order_relaxed);
     }
-} 
+}
 
-// быстрее и чуть чище проверка
 bool isPrime(long long n) {
     if (n < 2) return false;
     if (n % 2 == 0) return n == 2;
@@ -58,6 +57,11 @@ int main() {
 
     httplib::Server svr;
 
+    // ✅ health endpoint
+    svr.Get("/", [](const httplib::Request&, httplib::Response& res) {
+        res.set_content("ok", "text/plain");
+    });
+
     svr.Get("/check", [&](const httplib::Request& req, httplib::Response& res) {
         auto num_str = req.get_param_value("num");
 
@@ -82,5 +86,14 @@ int main() {
 
     std::cout << "Server started on 8080\n";
 
-    svr.listen("0.0.0.0", 8080);
+    std::thread server_thread([&] {
+        svr.listen("0.0.0.0", 8080);
+    });
+
+    while (running.load()) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+
+    svr.stop();
+    server_thread.join();
 }
