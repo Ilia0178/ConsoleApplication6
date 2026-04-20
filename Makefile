@@ -14,7 +14,6 @@ all: build
 
 .PHONY: setup
 setup:
-	@echo "📦 Installing dependencies..."
 	sudo apt-get update
 	sudo apt-get install -y \
 		build-essential \
@@ -25,33 +24,29 @@ setup:
 		cmake \
 		libcurl4-openssl-dev \
 		zlib1g-dev
-	@echo "✔ dependencies ready"
 
 .PHONY: deps
 deps:
-	@echo "📦 Downloading httplib.h..."
 	mkdir -p third_party
 	wget -q -O third_party/httplib.h \
 		https://raw.githubusercontent.com/yhirose/cpp-httplib/master/httplib.h
-	@echo "✔ httplib ready"
+
 
 .PHONY: prom
 prom:
-	@echo "📦 Building prometheus-cpp..."
 	if [ ! -f /usr/local/lib/libprometheus-cpp-core.so ]; then \
 		git clone --recursive https://github.com/jupp0r/prometheus-cpp.git /tmp/prom && \
 		cd /tmp/prom && mkdir build && cd build && \
 		cmake .. -DBUILD_SHARED_LIBS=ON -DENABLE_PUSH=OFF && \
 		make -j$$(nproc) && sudo make install && sudo ldconfig ; \
 	else \
-		echo "✔ prometheus already installed"; \
+		echo "prometheus already installed"; \
 	fi
 
 .PHONY: build
 build: setup deps prom
-	@echo "🚀 Building application..."
 	$(CXX) $(CXXFLAGS) $(SRC) -o $(TARGET) $(LDFLAGS)
-	@echo "✔ build complete"
+
 
 .PHONY: run
 run:
@@ -59,7 +54,6 @@ run:
 
 .PHONY: test
 test: build
-	@echo "🧪 Testing API..."
 	./$(TARGET) &
 	sleep 2
 	curl "http://localhost:8080/check?num=17" || true
@@ -79,7 +73,6 @@ docker-run:
 
 .PHONY: deploy
 deploy:
-	@echo "🚀 Deploying with Helm..."
 	docker pull your-dockerhub/$(PKG_NAME):latest
 	helm upgrade --install $(PKG_NAME) ./prime-checker \
 		--set image.repository=your-dockerhub/$(PKG_NAME) \
@@ -96,7 +89,7 @@ port-forward:
 
 .PHONY: all-up
 all-up: build docker-build deploy status
-	@echo "🎉 SYSTEM READY"
+
 
 .PHONY: package
 package:

@@ -4,7 +4,7 @@ on: [push]
 
 jobs:
 # =========================================================
-# 1 BUILD: Компиляция приложения
+# 1 BUILD
 # =========================================================
   build_job:
     runs-on: ubuntu-latest
@@ -32,7 +32,7 @@ jobs:
           path: prime_checker
 
 # =========================================================
-# 2 TEST: Проверка работоспособности
+# 2 TEST
 # =========================================================
   test_job:
     needs: build_job
@@ -45,7 +45,7 @@ jobs:
       - name: Smoke test
         run: |
 # =========================================================
-# 3 PACKAGE: Создание .deb пакета
+# 3 PACKAGE
 # =========================================================
   package_job:
     needs: test_job
@@ -64,52 +64,46 @@ jobs:
           path: ./*.deb
 
 # =========================================================
-# 4 DOCKER: Сборка с кэшированием (BuildKit + GHA Cache)
+# 4 DOCKER
 # =========================================================
   docker_build_and_push:
-    needs: package_job # Этот шаг запускается только после успешного завершения package_job
-    runs-on: ubuntu-latest # Используем виртуальную машину Ubuntu для сборки
+    needs: package_job 
+    runs-on: ubuntu-latest 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4 # Получаем код из репозитория
-
-      # Скачиваем бинарник prime_checker, который был собран в package_job
-      # path: . означает, что файл будет сохранен в корне репозитория
+        uses: actions/checkout@v4 
       - name: Download prime_checker binary
         uses: actions/download-artifact@v4
         with:
           name: prime_checker_binary
           path: .
-
-      # Скачиваем .deb пакет, если он тоже нужен для сборки Docker (хотя в текущем Dockerfile он не используется)
+ 
       - name: Download prime-checker .deb package
         uses: actions/download-artifact@v4
         with:
           name: prime-checker-deb
           path: .
 
-      # Шаг для отладки: выводит список файлов в корневой директории.
-      # Используйте его, если prime_checker не находится при сборке Docker.
       - name: Debug - List files
         run: |
           echo "Files in current directory:"
           ls -la
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3 # Настраиваем Docker Buildx для более эффективной сборки
+        uses: docker/setup-buildx-action@v3 
 
       - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }} # Логин пользователя Docker Hub из Secrets
-          password: ${{ secrets.DOCKERHUB_TOKEN_FOR_LOGIN }} # Пароль/токен для Docker Hub из Secrets
+          username: ${{ secrets.DOCKERHUB_USERNAME }} 
+          password: ${{ secrets.DOCKERHUB_TOKEN_FOR_LOGIN }} 
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: . # Контекст сборки - текущая директория (где находятся Dockerfile и prime_checker)
-          file: ./Dockerfile # Путь к файлу Dockerfile
-          push: true # Флаг, означающий, что образ нужно пушить в Docker Hub
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest # Тег для образа (имя пользователя/имя образа:тег)
-          cache-from: type=gha # Указываем, что можем брать кэш из GitHub Actions
-          cache-to: type=gha,mode=max # Указываем, что хотим сохранять кэш в GitHub Actions
+          context: . 
+          file: ./Dockerfile 
+          push: true 
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/prime-checker:latest 
+          cache-from: type=gha 
+          cache-to: type=gha,mode=max 

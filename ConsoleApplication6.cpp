@@ -57,9 +57,8 @@ int main() {
 
     httplib::Server svr;
 
-    // ✅ health endpoint
     svr.Get("/", [](const httplib::Request&, httplib::Response& res) {
-        res.set_content("ok", "text/plain");
+        res.set_content("ok\n", "text/plain");
     });
 
     svr.Get("/check", [&](const httplib::Request& req, httplib::Response& res) {
@@ -70,7 +69,7 @@ int main() {
             n = std::stoll(num_str);
         } catch (...) {
             res.status = 400;
-            res.set_content("invalid number", "text/plain");
+            res.set_content("invalid number\n", "text/plain");
             return;
         }
 
@@ -78,9 +77,9 @@ int main() {
 
         if (isPrime(n)) {
             found.Increment();
-            res.set_content(num_str + " is prime", "text/plain");
+            res.set_content(num_str + " is prime\n", "text/plain");
         } else {
-            res.set_content(num_str + " is not prime", "text/plain");
+            res.set_content(num_str + " is not prime\n", "text/plain");
         }
     });
 
