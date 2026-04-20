@@ -11,6 +11,8 @@
 #include <prometheus/exposer.h>
 #include <prometheus/registry.h>
 #include <prometheus/counter.h>
+#include <prometheus/gauge.h>
+#include <prometheus/histogram.h>
 
 using namespace prometheus;
 
@@ -40,9 +42,11 @@ int main() {
 
     auto registry = std::make_shared<Registry>();
 
+    // ---------------- METRICS ----------------
+
     auto& checks = BuildCounter()
         .Name("prime_checks_total")
-        .Help("Total requests")
+        .Help("Total requests to /check")
         .Register(*registry)
         .Add({});
 
@@ -51,6 +55,23 @@ int main() {
         .Help("Total primes found")
         .Register(*registry)
         .Add({});
+
+    auto& in_flight = BuildGauge()
+        .Name("http_in_flight_requests")
+        .Help("Current in-flight HTTP requests")
+        .Register(*registry)
+        .Add({});
+
+    auto& latency = BuildHistogram()
+        .Name("http_request_latency_seconds")
+        .Help("Request latency in seconds")
+        .Register(*registry)
+        .Add({},
+            Histogram::BucketBoundaries{
+                0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0
+            });
+
+    // ----------------------------------------
 
     Exposer exposer{"0.0.0.0:9090"};
     exposer.RegisterCollectable(registry);
@@ -62,6 +83,15 @@ int main() {
     });
 
     svr.Get("/check", [&](const httplib::Request& req, httplib::Response& res) {
+        auto start = std::chrono::steady_clock::now();
+
+        in_flight.Increment();
+
+        // гарантированное уменьшение gauge даже при раннем выходе
+        auto guard = std::shared_ptr<void>(nullptr, [&](...) {
+            in_flight.Decrement();
+        });
+
         auto num_str = req.get_param_value("num");
 
         long long n;
@@ -81,9 +111,15 @@ int main() {
         } else {
             res.set_content(num_str + " is not prime\n", "text/plain");
         }
+
+        auto end = std::chrono::steady_clock::now();
+        std::chrono::duration<double> diff = end - start;
+
+        latency.Observe(diff.count());
     });
 
     std::cout << "Server started on 8080\n";
+    std::cout << "Metrics on 9090/metrics\n";
 
     std::thread server_thread([&] {
         svr.listen("0.0.0.0", 8080);
